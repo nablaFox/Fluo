@@ -205,9 +205,22 @@ static void pick_physical_device(void) {
 
         if (!find_queue_families(devices[i], VK_NULL_HANDLE)) continue;
 
+        VkPhysicalDeviceDescriptorIndexingFeatures indexing_features = {
+            .sType =
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+            .descriptorBindingPartiallyBound = VK_TRUE,
+            .descriptorBindingVariableDescriptorCount = VK_TRUE,
+            .runtimeDescriptorArray = VK_TRUE,
+            .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+            .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
+            .descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
+            .descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE,
+        };
+
         VkPhysicalDeviceSynchronization2Features sync2_features = {
             .sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
+            .pNext = &indexing_features,
         };
 
         VkPhysicalDeviceDynamicRenderingFeatures dyn_features = {
@@ -230,13 +243,21 @@ static void pick_physical_device(void) {
         vkGetPhysicalDeviceFeatures2(devices[i], &features2);
 
         if (dyn_features.dynamicRendering && shader_obj_features.shaderObject &&
-            sync2_features.synchronization2) {
+            sync2_features.synchronization2 &&
+            indexing_features.descriptorBindingPartiallyBound &&
+            indexing_features.descriptorBindingVariableDescriptorCount &&
+            indexing_features.runtimeDescriptorArray &&
+            indexing_features.shaderSampledImageArrayNonUniformIndexing &&
+            indexing_features.shaderUniformBufferArrayNonUniformIndexing &&
+            indexing_features.descriptorBindingStorageBufferUpdateAfterBind &&
+            indexing_features.descriptorBindingUniformBufferUpdateAfterBind) {
             g_device.physical_device = devices[i];
             break;
         }
     }
 
     free(devices);
+
     assert(g_device.physical_device != VK_NULL_HANDLE &&
            "no suitable GPU found");
 }
@@ -264,8 +285,20 @@ static void create_logical_device(void) {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     };
 
+    VkPhysicalDeviceDescriptorIndexingFeatures indexing_features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
+        .descriptorBindingPartiallyBound = VK_TRUE,
+        .descriptorBindingVariableDescriptorCount = VK_TRUE,
+        .runtimeDescriptorArray = VK_TRUE,
+        .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+        .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
+        .descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
+        .descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE,
+    };
+
     VkPhysicalDeviceSynchronization2Features sync2_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
+        .pNext = &indexing_features,
         .synchronization2 = VK_TRUE,
     };
 
@@ -312,6 +345,101 @@ static void create_allocator(void) {
     assert(result == VK_SUCCESS && "failed to create VMA allocator");
 }
 
+static void create_bindless_descriptors(void) {
+    VkDevice dev = g_device.logical_device;
+
+    VkDescriptorSetLayoutBinding bindings[] = {
+        {
+            .binding = STORAGE_BUFFER_BINDING,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = MAX_BINDLESS_RESOURCES,
+            .stageFlags = VK_SHADER_STAGE_ALL,
+        },
+        {
+            .binding = UNIFORM_BINDING,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = MAX_BINDLESS_RESOURCES,
+            .stageFlags = VK_SHADER_STAGE_ALL,
+        },
+    };
+
+    VkDescriptorBindingFlags binding_flags[] = {
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+            VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
+            VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+    };
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo flags_info = {
+        .sType =
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+        .bindingCount = 2,
+        .pBindingFlags = binding_flags,
+    };
+
+    VkDescriptorSetLayoutCreateInfo layout_info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .pNext = &flags_info,
+        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
+        .bindingCount = 2,
+        .pBindings = bindings,
+    };
+
+    vkCreateDescriptorSetLayout(dev, &layout_info, NULL,
+                                &g_device.descriptor_layout);
+
+    VkDescriptorPoolSize pool_sizes[] = {
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MAX_BINDLESS_RESOURCES},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_BINDLESS_RESOURCES},
+    };
+
+    VkDescriptorPoolCreateInfo pool_info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+        .maxSets = 1,
+        .poolSizeCount = 2,
+        .pPoolSizes = pool_sizes,
+    };
+
+    vkCreateDescriptorPool(dev, &pool_info, NULL, &g_device.descriptor_pool);
+
+    uint32_t variable_count = MAX_BINDLESS_RESOURCES;
+    VkDescriptorSetVariableDescriptorCountAllocateInfo variable_info = {
+        .sType =
+            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
+        .descriptorSetCount = 1,
+        .pDescriptorCounts = &variable_count,
+    };
+
+    VkDescriptorSetAllocateInfo set_alloc = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .pNext = &variable_info,
+        .descriptorPool = g_device.descriptor_pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &g_device.descriptor_layout,
+    };
+
+    vkAllocateDescriptorSets(dev, &set_alloc, &g_device.descriptor_set);
+
+    VkPushConstantRange push_range = {
+        .stageFlags = VK_SHADER_STAGE_ALL,
+        .offset = 0,
+        .size = sizeof(uint32_t),
+    };
+
+    VkPipelineLayoutCreateInfo pipeline_layout_info = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &g_device.descriptor_layout,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &push_range,
+    };
+
+    vkCreatePipelineLayout(dev, &pipeline_layout_info, NULL,
+                           &g_device.pipeline_layout);
+}
+
 void init_device() {
     create_instance();
 #ifdef DEBUG
@@ -320,14 +448,23 @@ void init_device() {
     pick_physical_device();
     create_logical_device();
     create_allocator();
+    create_bindless_descriptors();
 }
 
 void destroy_device() {
+    VkDevice dev = g_device.logical_device;
+
+    if (dev != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(dev, g_device.pipeline_layout, NULL);
+        vkDestroyDescriptorPool(dev, g_device.descriptor_pool, NULL);
+        vkDestroyDescriptorSetLayout(dev, g_device.descriptor_layout, NULL);
+    }
+
     if (g_device.allocator != VK_NULL_HANDLE) {
         vmaDestroyAllocator(g_device.allocator);
     }
-    if (g_device.logical_device != VK_NULL_HANDLE) {
-        vkDestroyDevice(g_device.logical_device, NULL);
+    if (dev != VK_NULL_HANDLE) {
+        vkDestroyDevice(dev, NULL);
     }
 #ifdef DEBUG
     destroy_debug_messenger();

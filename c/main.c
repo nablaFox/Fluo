@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -36,6 +37,10 @@ struct Vertex {
     float color[3];
 };
 
+struct Material {
+    float alpha;
+};
+
 static struct Vertex vertices[] = {
     {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
     {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
@@ -48,7 +53,6 @@ int main(int argc, char* argv[]) {
     VkResult r;
 
     init_device();
-
     VkDevice dev = g_device.logical_device;
 
 #define LOAD(fn)                                     \
@@ -72,33 +76,75 @@ int main(int argc, char* argv[]) {
     struct Window* window = create_window("Vulkan Triangle", 800, 600);
 
     VkBuffer vertex_buffer;
-    VmaAllocation vertex_allocation;
-    VkDeviceSize vertex_size = sizeof(vertices);
+    VmaAllocation vertex_alloc;
 
-    VkBufferCreateInfo buf_info = {
+    VkBufferCreateInfo vb_info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = vertex_size,
+        .size = sizeof(vertices),
         .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
 
-    VmaAllocationCreateInfo vma_alloc_info = {
+    VmaAllocationCreateInfo vb_alloc_info = {
         .usage = VMA_MEMORY_USAGE_AUTO,
         .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
     };
 
-    r = vmaCreateBuffer(g_device.allocator, &buf_info, &vma_alloc_info,
-                        &vertex_buffer, &vertex_allocation, NULL);
-    assert(r == VK_SUCCESS && "failed to create vertex buffer");
-
+    vmaCreateBuffer(g_device.allocator, &vb_info, &vb_alloc_info,
+                    &vertex_buffer, &vertex_alloc, NULL);
     void* mapped;
-    vmaMapMemory(g_device.allocator, vertex_allocation, &mapped);
-    memcpy(mapped, vertices, vertex_size);
-    vmaUnmapMemory(g_device.allocator, vertex_allocation);
+    vmaMapMemory(g_device.allocator, vertex_alloc, &mapped);
+    memcpy(mapped, vertices, sizeof(vertices));
+    vmaUnmapMemory(g_device.allocator, vertex_alloc);
+
+    struct Material material = {.alpha = 0.5f};
+
+    VkBuffer material_buffer;
+    VmaAllocation material_alloc;
+
+    VkBufferCreateInfo mat_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = sizeof(struct Material),
+        .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+    };
+
+    VmaAllocationCreateInfo mat_alloc_info = {
+        .usage = VMA_MEMORY_USAGE_AUTO,
+        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+    };
+
+    vmaCreateBuffer(g_device.allocator, &mat_info, &mat_alloc_info,
+                    &material_buffer, &material_alloc, NULL);
+    vmaMapMemory(g_device.allocator, material_alloc, &mapped);
+    memcpy(mapped, &material, sizeof(material));
+    vmaUnmapMemory(g_device.allocator, material_alloc);
+
+    VkDescriptorBufferInfo desc_buf_info = {
+        .buffer = material_buffer,
+        .offset = 0,
+        .range = sizeof(struct Material),
+    };
+
+    VkWriteDescriptorSet write = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = g_device.descriptor_set,
+        .dstBinding = UNIFORM_BINDING,
+        .dstArrayElement = 0,  // material index 0
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .pBufferInfo = &desc_buf_info,
+    };
+
+    vkUpdateDescriptorSets(dev, 1, &write, 0, NULL);
 
     size_t vert_size, frag_size;
     uint8_t* vert_code = read_file("vert.spv", &vert_size);
     uint8_t* frag_code = read_file("frag.spv", &frag_size);
+
+    VkPushConstantRange push_range = {
+        .stageFlags = VK_SHADER_STAGE_ALL,
+        .offset = 0,
+        .size = sizeof(uint32_t),
+    };
 
     VkShaderCreateInfoEXT shader_infos[2] = {
         {
@@ -109,6 +155,10 @@ int main(int argc, char* argv[]) {
             .codeSize = vert_size,
             .pCode = vert_code,
             .pName = "main",
+            .setLayoutCount = 1,
+            .pSetLayouts = &g_device.descriptor_layout,
+            .pushConstantRangeCount = 1,
+            .pPushConstantRanges = &push_range,
         },
         {
             .sType = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT,
@@ -118,6 +168,10 @@ int main(int argc, char* argv[]) {
             .codeSize = frag_size,
             .pCode = frag_code,
             .pName = "main",
+            .setLayoutCount = 1,
+            .pSetLayouts = &g_device.descriptor_layout,
+            .pushConstantRangeCount = 1,
+            .pPushConstantRanges = &push_range,
         },
     };
 
@@ -150,14 +204,11 @@ int main(int argc, char* argv[]) {
     vkAllocateCommandBuffers(dev, &alloc, cmds);
 
     VkSemaphoreCreateInfo sem_ci = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-    };
-
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
     VkFenceCreateInfo fence_ci = {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
-
     for (int i = 0; i < MAX_FRAMES; i++) {
         vkCreateSemaphore(dev, &sem_ci, NULL, &sem_available[i]);
         vkCreateFence(dev, &fence_ci, NULL, &fences[i]);
@@ -165,7 +216,6 @@ int main(int argc, char* argv[]) {
 
     VkSemaphore* sem_finished =
         (VkSemaphore*)malloc(window->image_count * sizeof(VkSemaphore));
-
     for (uint32_t i = 0; i < window->image_count; i++) {
         vkCreateSemaphore(dev, &sem_ci, NULL, &sem_finished[i]);
     }
@@ -237,6 +287,14 @@ int main(int argc, char* argv[]) {
 
         vkCmdBindShadersEXT_(cmd, 2, stages, shaders);
 
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                g_device.pipeline_layout, 0, 1,
+                                &g_device.descriptor_set, 0, NULL);
+
+        uint32_t material_index = 0;
+        vkCmdPushConstants(cmd, g_device.pipeline_layout, VK_SHADER_STAGE_ALL,
+                           0, sizeof(uint32_t), &material_index);
+
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &vertex_buffer, &offset);
 
@@ -266,7 +324,6 @@ int main(int argc, char* argv[]) {
                 .offset = offsetof(struct Vertex, color),
             },
         };
-
         vkCmdSetVertexInputEXT_(cmd, 1, &binding, 2, attributes);
 
         VkViewport viewport = {
@@ -279,10 +336,8 @@ int main(int argc, char* argv[]) {
         };
 
         vkCmdSetViewportWithCount(cmd, 1, &viewport);
-
         VkRect2D scissor = {{0, 0}, window->swapchain_extent};
         vkCmdSetScissorWithCount(cmd, 1, &scissor);
-
         vkCmdSetRasterizerDiscardEnable(cmd, VK_FALSE);
         vkCmdSetPolygonModeEXT_(cmd, VK_POLYGON_MODE_FILL);
         vkCmdSetRasterizationSamplesEXT_(cmd, VK_SAMPLE_COUNT_1_BIT);
@@ -351,7 +406,6 @@ int main(int argc, char* argv[]) {
             .signalSemaphoreCount = 1,
             .pSignalSemaphores = &sem_finished[img_idx],
         };
-
         vkQueueSubmit(g_device.graphics_queue, 1, &submit, fences[frame]);
 
         VkPresentInfoKHR present = {
@@ -369,7 +423,8 @@ int main(int argc, char* argv[]) {
 
     vkDeviceWaitIdle(dev);
 
-    vmaDestroyBuffer(g_device.allocator, vertex_buffer, vertex_allocation);
+    vmaDestroyBuffer(g_device.allocator, vertex_buffer, vertex_alloc);
+    vmaDestroyBuffer(g_device.allocator, material_buffer, material_alloc);
     vkDestroyShaderEXT_(dev, shaders[0], NULL);
     vkDestroyShaderEXT_(dev, shaders[1], NULL);
     for (int i = 0; i < MAX_FRAMES; i++) {
