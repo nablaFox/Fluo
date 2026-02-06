@@ -324,6 +324,7 @@ int main(int argc, char* argv[]) {
                 .offset = offsetof(struct Vertex, color),
             },
         };
+
         vkCmdSetVertexInputEXT_(cmd, 1, &binding, 2, attributes);
 
         VkViewport viewport = {
@@ -406,6 +407,7 @@ int main(int argc, char* argv[]) {
             .signalSemaphoreCount = 1,
             .pSignalSemaphores = &sem_finished[img_idx],
         };
+
         vkQueueSubmit(g_device.graphics_queue, 1, &submit, fences[frame]);
 
         VkPresentInfoKHR present = {
@@ -416,6 +418,7 @@ int main(int argc, char* argv[]) {
             .pSwapchains = &window->swapchain,
             .pImageIndices = &img_idx,
         };
+
         vkQueuePresentKHR(g_device.present_queue, &present);
 
         frame = (frame + 1) % MAX_FRAMES;
@@ -427,13 +430,16 @@ int main(int argc, char* argv[]) {
     vmaDestroyBuffer(g_device.allocator, material_buffer, material_alloc);
     vkDestroyShaderEXT_(dev, shaders[0], NULL);
     vkDestroyShaderEXT_(dev, shaders[1], NULL);
+
     for (int i = 0; i < MAX_FRAMES; i++) {
         vkDestroySemaphore(dev, sem_available[i], NULL);
         vkDestroyFence(dev, fences[i], NULL);
     }
+
     for (uint32_t i = 0; i < window->image_count; i++) {
         vkDestroySemaphore(dev, sem_finished[i], NULL);
     }
+
     free(sem_finished);
     vkDestroyCommandPool(dev, cmd_pool, NULL);
     destroy_window(window);
@@ -442,3 +448,12 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
+// abstraction
+
+// gleam usage:
+
+// renderer(frag, vert)
+// draw(renderer, mesh)
+
+// renderer(frag, vert)

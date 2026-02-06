@@ -1,5 +1,4 @@
 g++ \
-  -DDEBUG \
   -x c device.c \
   -x c window.c \
   -x c main.c \
