@@ -209,9 +209,15 @@ static void pick_physical_device(void) {
 
         if (!find_queue_families(devices[i], VK_NULL_HANDLE)) continue;
 
+        VkPhysicalDeviceSynchronization2Features sync2_features = {
+            .sType =
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
+        };
+
         VkPhysicalDeviceDynamicRenderingFeatures dyn_features = {
             .sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
+            .pNext = &sync2_features,
         };
 
         VkPhysicalDeviceShaderObjectFeaturesEXT shader_obj_features = {
@@ -227,7 +233,8 @@ static void pick_physical_device(void) {
 
         vkGetPhysicalDeviceFeatures2(devices[i], &features2);
 
-        if (dyn_features.dynamicRendering && shader_obj_features.shaderObject) {
+        if (dyn_features.dynamicRendering && shader_obj_features.shaderObject &&
+            sync2_features.synchronization2) {
             g_device.physical_device = devices[i];
             break;
         }
@@ -235,7 +242,7 @@ static void pick_physical_device(void) {
 
     free(devices);
     assert(g_device.physical_device != VK_NULL_HANDLE &&
-           "no suitable GPU with dynamic rendering + shader objects support");
+           "no suitable GPU found");
 }
 
 static void create_logical_device(void) {
@@ -261,8 +268,14 @@ static void create_logical_device(void) {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     };
 
+    VkPhysicalDeviceSynchronization2Features sync2_features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
+        .synchronization2 = VK_TRUE,
+    };
+
     VkPhysicalDeviceDynamicRenderingFeatures dyn_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
+        .pNext = &sync2_features,
         .dynamicRendering = VK_TRUE,
     };
 
