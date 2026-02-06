@@ -31,15 +31,25 @@ static uint8_t* read_file(const char* path, size_t* size) {
     return data;
 }
 
+struct Vertex {
+    float pos[2];
+    float color[3];
+};
+
+static struct Vertex vertices[] = {
+    {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+};
+
 #define MAX_FRAMES 2
 
 int main(int argc, char* argv[]) {
-    VkDevice dev;
     VkResult r;
 
     init_device();
 
-    dev = g_device.logical_device;
+    VkDevice dev = g_device.logical_device;
 
 #define LOAD(fn)                                     \
     fn##_ = (PFN_##fn)vkGetDeviceProcAddr(dev, #fn); \
@@ -61,8 +71,32 @@ int main(int argc, char* argv[]) {
 
     struct Window* window = create_window("Vulkan Triangle", 800, 600);
 
-    size_t vert_size, frag_size;
+    VkBuffer vertex_buffer;
+    VmaAllocation vertex_allocation;
+    VkDeviceSize vertex_size = sizeof(vertices);
 
+    VkBufferCreateInfo buf_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = vertex_size,
+        .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    VmaAllocationCreateInfo vma_alloc_info = {
+        .usage = VMA_MEMORY_USAGE_AUTO,
+        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+    };
+
+    r = vmaCreateBuffer(g_device.allocator, &buf_info, &vma_alloc_info,
+                        &vertex_buffer, &vertex_allocation, NULL);
+    assert(r == VK_SUCCESS && "failed to create vertex buffer");
+
+    void* mapped;
+    vmaMapMemory(g_device.allocator, vertex_allocation, &mapped);
+    memcpy(mapped, vertices, vertex_size);
+    vmaUnmapMemory(g_device.allocator, vertex_allocation);
+
+    size_t vert_size, frag_size;
     uint8_t* vert_code = read_file("vert.spv", &vert_size);
     uint8_t* frag_code = read_file("frag.spv", &frag_size);
 
@@ -94,7 +128,6 @@ int main(int argc, char* argv[]) {
     free(frag_code);
 
     VkCommandPool cmd_pool;
-
     VkCommandPoolCreateInfo pool_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
@@ -107,34 +140,34 @@ int main(int argc, char* argv[]) {
     VkSemaphore sem_available[MAX_FRAMES];
     VkFence fences[MAX_FRAMES];
 
-    VkCommandBufferAllocateInfo alloc_info = {
+    VkCommandBufferAllocateInfo alloc = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool = cmd_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = MAX_FRAMES,
     };
 
-    vkAllocateCommandBuffers(dev, &alloc_info, cmds);
+    vkAllocateCommandBuffers(dev, &alloc, cmds);
 
-    VkSemaphoreCreateInfo sem_info = {
+    VkSemaphoreCreateInfo sem_ci = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     };
 
-    VkFenceCreateInfo fence_info = {
+    VkFenceCreateInfo fence_ci = {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
 
     for (int i = 0; i < MAX_FRAMES; i++) {
-        vkCreateSemaphore(dev, &sem_info, NULL, &sem_available[i]);
-        vkCreateFence(dev, &fence_info, NULL, &fences[i]);
+        vkCreateSemaphore(dev, &sem_ci, NULL, &sem_available[i]);
+        vkCreateFence(dev, &fence_ci, NULL, &fences[i]);
     }
 
     VkSemaphore* sem_finished =
         (VkSemaphore*)malloc(window->image_count * sizeof(VkSemaphore));
 
     for (uint32_t i = 0; i < window->image_count; i++) {
-        vkCreateSemaphore(dev, &sem_info, NULL, &sem_finished[i]);
+        vkCreateSemaphore(dev, &sem_ci, NULL, &sem_finished[i]);
     }
 
     uint32_t frame = 0;
@@ -204,6 +237,38 @@ int main(int argc, char* argv[]) {
 
         vkCmdBindShadersEXT_(cmd, 2, stages, shaders);
 
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(cmd, 0, 1, &vertex_buffer, &offset);
+
+        VkVertexInputBindingDescription2EXT binding = {
+            .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_BINDING_DESCRIPTION_2_EXT,
+            .binding = 0,
+            .stride = sizeof(struct Vertex),
+            .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+            .divisor = 1,
+        };
+
+        VkVertexInputAttributeDescription2EXT attributes[] = {
+            {
+                .sType =
+                    VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
+                .location = 0,
+                .binding = 0,
+                .format = VK_FORMAT_R32G32_SFLOAT,
+                .offset = offsetof(struct Vertex, pos),
+            },
+            {
+                .sType =
+                    VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
+                .location = 1,
+                .binding = 0,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = offsetof(struct Vertex, color),
+            },
+        };
+
+        vkCmdSetVertexInputEXT_(cmd, 1, &binding, 2, attributes);
+
         VkViewport viewport = {
             0,
             0,
@@ -245,7 +310,6 @@ int main(int argc, char* argv[]) {
         };
         vkCmdSetColorBlendEquationEXT_(cmd, 0, 1, &blend_eq);
         vkCmdSetLogicOpEnableEXT_(cmd, VK_FALSE);
-        vkCmdSetVertexInputEXT_(cmd, 0, NULL, 0, NULL);
 
         vkCmdDraw(cmd, 3, 1, 0, 0);
 
@@ -277,7 +341,6 @@ int main(int argc, char* argv[]) {
 
         VkPipelineStageFlags wait_stage =
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
         VkSubmitInfo submit = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .waitSemaphoreCount = 1,
@@ -299,7 +362,6 @@ int main(int argc, char* argv[]) {
             .pSwapchains = &window->swapchain,
             .pImageIndices = &img_idx,
         };
-
         vkQueuePresentKHR(g_device.present_queue, &present);
 
         frame = (frame + 1) % MAX_FRAMES;
@@ -307,18 +369,16 @@ int main(int argc, char* argv[]) {
 
     vkDeviceWaitIdle(dev);
 
+    vmaDestroyBuffer(g_device.allocator, vertex_buffer, vertex_allocation);
     vkDestroyShaderEXT_(dev, shaders[0], NULL);
     vkDestroyShaderEXT_(dev, shaders[1], NULL);
-
     for (int i = 0; i < MAX_FRAMES; i++) {
         vkDestroySemaphore(dev, sem_available[i], NULL);
         vkDestroyFence(dev, fences[i], NULL);
     }
-
     for (uint32_t i = 0; i < window->image_count; i++) {
         vkDestroySemaphore(dev, sem_finished[i], NULL);
     }
-
     free(sem_finished);
     vkDestroyCommandPool(dev, cmd_pool, NULL);
     destroy_window(window);

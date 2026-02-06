@@ -6,6 +6,8 @@
 #include <string.h>
 #include <vulkan/vulkan.h>
 
+#include "vk_mem_alloc.h"
+
 struct Device {
     VkInstance instance;
     VkPhysicalDevice physical_device;
@@ -14,6 +16,7 @@ struct Device {
     VkQueue present_queue;
     uint32_t graphics_family;
     uint32_t present_family;
+    VmaAllocator allocator;
 #ifdef DEBUG
     VkDebugUtilsMessengerEXT debug_messenger;
 #endif
@@ -22,5 +25,4 @@ struct Device {
 extern struct Device g_device;
 
 void init_device();
-
 void destroy_device();

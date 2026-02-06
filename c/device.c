@@ -39,8 +39,6 @@ static void create_debug_messenger(void) {
         .pfnUserCallback = debug_callback,
     };
 
-    // vkCreateDebugUtilsMessengerEXT is an extension function, must load
-    // manually
     PFN_vkCreateDebugUtilsMessengerEXT func =
         (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
             g_device.instance, "vkCreateDebugUtilsMessengerEXT");
@@ -144,13 +142,11 @@ static void create_instance(void) {
         .apiVersion = VK_API_VERSION_1_3,
     };
 
-    // GLFW tells us which instance extensions are needed for surface creation
     uint32_t glfw_ext_count = 0;
     const char** glfw_extensions =
         glfwGetRequiredInstanceExtensions(&glfw_ext_count);
 
 #ifdef DEBUG
-    // +1 for VK_EXT_debug_utils
     uint32_t ext_count = glfw_ext_count + 1;
     const char** extensions =
         (const char**)malloc(ext_count * sizeof(const char*));
@@ -304,6 +300,18 @@ static void create_logical_device(void) {
                      &g_device.present_queue);
 }
 
+static void create_allocator(void) {
+    VmaAllocatorCreateInfo alloc_info = {
+        .physicalDevice = g_device.physical_device,
+        .device = g_device.logical_device,
+        .instance = g_device.instance,
+        .vulkanApiVersion = VK_API_VERSION_1_3,
+    };
+
+    VkResult result = vmaCreateAllocator(&alloc_info, &g_device.allocator);
+    assert(result == VK_SUCCESS && "failed to create VMA allocator");
+}
+
 void init_device() {
     create_instance();
 #ifdef DEBUG
@@ -311,9 +319,13 @@ void init_device() {
 #endif
     pick_physical_device();
     create_logical_device();
+    create_allocator();
 }
 
 void destroy_device() {
+    if (g_device.allocator != VK_NULL_HANDLE) {
+        vmaDestroyAllocator(g_device.allocator);
+    }
     if (g_device.logical_device != VK_NULL_HANDLE) {
         vkDestroyDevice(g_device.logical_device, NULL);
     }
