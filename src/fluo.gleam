@@ -1,4 +1,3 @@
-import gleam/io
 import gleam/float
 import gleam/option.{type Option, Some}
 
@@ -11,20 +10,24 @@ pub type Vec3 {
 }
 
 pub type Vertex {
-  Vertex(
-    position: Vec3,
-    color: Color,
-  )
+  Vertex(position: Vec3, color: Color)
 }
 
-pub type Index = Int
+pub type Index =
+  Int
 
 pub opaque type Mesh {
   Mesh(vertices: List(Vertex), indices: List(Index))
 }
 
 pub opaque type Window {
-  Window(width: Int, height: Int, title: String, color: ColorImage, depth: DepthImage)
+  Window(
+    width: Int,
+    height: Int,
+    title: String,
+    color: ColorImage,
+    depth: DepthImage,
+  )
 }
 
 pub opaque type Renderer(params) {
@@ -40,10 +43,18 @@ pub opaque type DepthImage {
 }
 
 @external(erlang, "fluo_nif", "create_window")
-pub fn create_window(width: Int, height: Int, title: String) -> Window
+pub fn create_window(
+  title: String,
+  width width: Int,
+  height height: Int,
+) -> Window
 
 @external(erlang, "fluo_nif", "create_renderer")
-pub fn create_renderer(params: params, vert vert: String, frag frag: String) -> Renderer(params)
+pub fn create_renderer(
+  params: params,
+  vert vert: String,
+  frag frag: String,
+) -> Renderer(params)
 
 @external(erlang, "fluo_nif", "create_mesh")
 pub fn create_mesh(vertices: List(Vertex), indices: List(Index)) -> Mesh
@@ -52,7 +63,13 @@ pub fn create_mesh(vertices: List(Vertex), indices: List(Index)) -> Mesh
 pub fn start_rendering() -> Nil
 
 @external(erlang, "fluo_nif", "draw")
-pub fn draw(renderer: Renderer(params), mesh: Mesh, params: params, color color: Option(ColorImage), depth depth: Option(DepthImage)) -> Nil
+pub fn draw(
+  renderer: Renderer(params),
+  mesh: Mesh,
+  params: params,
+  color color: Option(ColorImage),
+  depth depth: Option(DepthImage),
+) -> Nil
 
 @external(erlang, "fluo_nif", "end_rendering")
 pub fn end_rendering() -> Nil
@@ -64,11 +81,15 @@ pub fn present_window(window: Window) -> Nil
 pub fn window_should_close(window: Window) -> Bool
 
 const red = Color(1.0, 0.0, 0.0)
+
 const green = Color(0.0, 1.0, 0.0)
+
 const blue = Color(0.0, 0.0, 1.0)
 
 pub fn main() {
-  let window = create_window(800, 600, "Fluo Window")
+  let window = create_window("Fluo Window", width: 800, height: 600)
+
+  echo window.width
 
   let vertices = [
     Vertex(position: Vec3(0.0, 0.5, 0.0), color: red),

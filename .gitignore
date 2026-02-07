@@ -2,3 +2,5 @@
 *.ez
 /build
 erl_crash.dump
+compile_commands.json
+priv
