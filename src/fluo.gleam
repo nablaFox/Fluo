@@ -1,5 +1,4 @@
 import gleam/dynamic.{type Dynamic}
-import gleam/float
 import gleam/option.{type Option, Some}
 
 pub type Color {
@@ -18,7 +17,7 @@ pub type Index =
   Int
 
 pub opaque type Mesh {
-  Mesh(vertices: List(Vertex), indices: List(Index))
+  Mesh(vertices_count: Int, indices_count: Int, handle: Dynamic)
 }
 
 pub opaque type Window {
@@ -61,6 +60,9 @@ pub fn create_renderer(
 @external(erlang, "fluo_nif", "create_mesh")
 pub fn create_mesh(vertices: List(Vertex), indices: List(Index)) -> Mesh
 
+@external(erlang, "fluo_nif", "load_mesh")
+pub fn load_mesh(path: String) -> Mesh
+
 @external(erlang, "fluo_nif", "start_rendering")
 pub fn start_rendering() -> Nil
 
@@ -82,50 +84,64 @@ pub fn present_window(window: Window) -> Nil
 @external(erlang, "fluo_nif", "window_should_close")
 pub fn window_should_close(window: Window) -> Bool
 
-const red = Color(1.0, 0.0, 0.0)
+pub const red = Color(1.0, 0.0, 0.0)
 
-const green = Color(0.0, 1.0, 0.0)
+pub const green = Color(0.0, 1.0, 0.0)
 
-const blue = Color(0.0, 0.0, 1.0)
+pub const blue = Color(0.0, 0.0, 1.0)
 
-pub fn main() {
-  let window = create_window("Fluo Window", width: 800, height: 600)
-
-  let vertices = [
-    Vertex(position: Vec3(0.0, 0.5, 0.0), color: red),
-    Vertex(position: Vec3(-0.5, -0.5, 0.0), color: green),
-    Vertex(position: Vec3(0.5, -0.5, 0.0), color: blue),
-  ]
-
-  let indices = [0, 1, 2]
-
-  let mesh = create_mesh(vertices, indices)
-
-  let alpha = 0.0
-
-  let renderer = create_renderer(#(alpha), vert: "vert.spv", frag: "frag.spv")
-
-  game_loop(mesh, renderer, window, alpha)
+pub type Event {
+  None
 }
 
-fn game_loop(mesh, renderer, window, alpha) {
+pub fn game_loop(
+  window: Window,
+  callback: fn(Event, fn(Renderer(params), Mesh, params) -> Nil, Float) -> Nil,
+) {
   case window_should_close(window) {
     True -> Nil
     False -> {
-      start_rendering()
+      // start_rendering()
 
-      let color = Some(window.color)
-      let depth = Some(window.depth)
+      let delta = 0.016
 
-      let alpha = float.min(alpha +. 0.01, 1.0)
+      let draw = fn(renderer, mesh, params) {
+        let color = Some(window.color)
+        let depth = Some(window.depth)
 
-      draw(renderer, mesh, #(alpha), color, depth)
+        draw(renderer, mesh, params, color, depth)
+      }
 
-      end_rendering()
+      callback(None, draw, delta)
 
-      present_window(window)
+      // end_rendering()
 
-      game_loop(mesh, renderer, window, alpha)
+      // present_window(window)
+
+      game_loop(window, callback)
     }
   }
+}
+
+pub fn main() {
+  let window = create_window("Fluo Window", width: 800, height: 600)
+  // let mesh =
+  //   create_mesh(
+  //     [
+  //       Vertex(position: Vec3(0.0, 0.5, 0.0), color: red),
+  //       Vertex(position: Vec3(-0.5, -0.5, 0.0), color: green),
+  //       Vertex(position: Vec3(0.5, -0.5, 0.0), color: blue),
+  //     ],
+  //     [0, 1, 2],
+  //   )
+
+  // let alpha = 0.0
+  //
+  // let renderer = create_renderer(#(alpha), vert: "vert.spv", frag: "frag.spv")
+  //
+
+  game_loop(window, fn(_, _, delta) {
+    Nil
+    // draw(renderer, mesh, #(float.min(alpha +. delta, 1.0)))
+  })
 }

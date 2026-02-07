@@ -448,12 +448,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
-// abstraction
-
-// gleam usage:
-
-// renderer(frag, vert)
-// draw(renderer, mesh)
-
-// renderer(frag, vert)

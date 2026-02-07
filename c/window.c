@@ -1,6 +1,7 @@
 #include "window.h"
 
 #include <GLFW/glfw3.h>
+#include <stdlib.h>
 
 #include "device.h"
 

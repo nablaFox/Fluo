@@ -8,46 +8,24 @@ Currently under development.
 #### Gleam cpu code
 
 ```gleam
+import fluo.{create_window, load_mesh, create_renderer, game_loop}
+
 pub fn main() {
-  let window = create_window(800, 600, "Fluo Window")
+  let window = create_window("Fluo Window", width: 800, height: 600)
 
-  let vertices = [
-    Vertex(position: Vec3(0.0, 0.5, 0.0), color: red),
-    Vertex(position: Vec3(-0.5, -0.5, 0.0), color: green),
-    Vertex(position: Vec3(0.5, -0.5, 0.0), color: blue),
-  ]
-
-  let indices = [0, 1, 2]
-
-  let mesh = create_mesh(vertices, indices)
+  let mesh = load_mesh("assets/triangle.obj")
 
   let alpha = 0.0
 
   let renderer = create_renderer(#(alpha), vert: "vert.spv", frag: "frag.spv")
 
-  game_loop(mesh, renderer, window, alpha)
-}
-
-fn game_loop(mesh, renderer, window, alpha) {
-  case window_should_close(window) {
-    True -> Nil
-    False -> {
-      start_rendering()
-
-      let color = Some(window.color)
-      let depth = Some(window.depth)
-
-      let alpha = float.min(alpha +. 0.01, 1.0)
-
-      draw(renderer, mesh, #(alpha), color, depth)
-
-      end_rendering()
-
-      present_window(window)
-
-      game_loop(mesh, renderer, window, alpha)
-    }
-  }
+  game_loop(window, fn(_, draw, delta) {
+    draw(
+      renderer, 
+      mesh, 
+      #(float.min(alpha +. delta, 1.0))
+    )
+  })
 }
 ```
 
