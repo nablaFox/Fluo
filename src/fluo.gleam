@@ -1,3 +1,4 @@
+import gleam/dynamic.{type Dynamic}
 import gleam/float
 import gleam/option.{type Option, Some}
 
@@ -27,6 +28,7 @@ pub opaque type Window {
     title: String,
     color: ColorImage,
     depth: DepthImage,
+    handle: Dynamic,
   )
 }
 
@@ -88,8 +90,6 @@ const blue = Color(0.0, 0.0, 1.0)
 
 pub fn main() {
   let window = create_window("Fluo Window", width: 800, height: 600)
-
-  echo window.width
 
   let vertices = [
     Vertex(position: Vec3(0.0, 0.5, 0.0), color: red),
