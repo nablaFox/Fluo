@@ -3,16 +3,34 @@
 #include <vulkan/vulkan.h>
 #include "vk_mem_alloc.h"
 
-int create_gpu_buffer(VkDeviceSize size,
-                      VkBufferUsageFlags usage,
-                      VmaMemoryUsage mem_usage,
-                      VkBuffer* out_buf,
-                      VmaAllocation* out_alloc);
+typedef struct {
+    float px, py, pz;
+    float cr, cg, cb;
+} VertexGPU;
 
-int write_gpu_buffer(const void* src_data,
+typedef struct {
+    VkBuffer buffer;
+    VmaAllocation alloc;
+    VmaAllocationInfo info;
+    VkDeviceSize size;
+    VkBufferUsageFlags usage;
+    VkMemoryPropertyFlags memory_properties;
+} GpuBuffer;
+
+int create_gpu_buffer(GpuBuffer* out,
+                      VkDeviceSize size,
+                      VkBufferUsageFlags usage,
+                      VkMemoryPropertyFlags memoryProperties);
+
+void destroy_gpu_buffer(GpuBuffer* buf);
+
+int write_gpu_buffer(GpuBuffer* buf,
+                     const void* src,
                      VkDeviceSize size,
-                     VkBufferUsageFlags dst_usage,
+                     VkDeviceSize offset,
                      VkPipelineStageFlags dst_stage,
-                     VkAccessFlags dst_access,
-                     VkBuffer* out_buf,
-                     VmaAllocation* out_alloc);
+                     VkAccessFlags dst_access);
+
+int direct_write_gpu_buffer(GpuBuffer* buf, const void* src, VkDeviceSize size, VkDeviceSize offset);
+
+int read_gpu_buffer(GpuBuffer* buf, void* dst, VkDeviceSize size, VkDeviceSize offset);

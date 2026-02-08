@@ -1,6 +1,6 @@
 #include "device.h"
-#include "erl_nif.h"
 #include "mesh.h"
+#include "renderer.h"
 #include "window.h"
 
 static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
@@ -18,6 +18,10 @@ static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
         return -1;
     }
 
+    if (nif_init_renderer_res(env) < 0) {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -31,6 +35,7 @@ static ErlNifFunc nif_funcs[] = {
     {"create_window", 3, nif_create_window},
     {"window_should_close", 1, nif_window_should_close},
     {"create_mesh", 2, nif_create_mesh},
+    {"create_renderer", 3, nif_create_renderer},
 };
 
 ERL_NIF_INIT(fluo_nif, nif_funcs, load, NULL, NULL, NULL)

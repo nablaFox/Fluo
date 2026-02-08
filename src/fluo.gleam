@@ -1,148 +1,7 @@
-import gleam/dynamic.{type Dynamic}
-import gleam/list
-import gleam/option.{type Option, Some}
-
-pub type Color {
-  Color(r: Float, g: Float, b: Float)
-}
-
-pub type Vec3 {
-  Vec3(x: Float, y: Float, z: Float)
-}
-
-pub type Vertex {
-  Vertex(position: Vec3, color: Color)
-}
-
-pub type Index =
-  Int
-
-pub opaque type Window {
-  Window(
-    width: Int,
-    height: Int,
-    title: String,
-    color: ColorImage,
-    depth: DepthImage,
-    handle: Dynamic,
-  )
-}
-
-@external(erlang, "fluo_nif", "create_window")
-pub fn create_window_raw(
-  title: String,
-  width: Int,
-  height: Int,
-) -> #(ColorImage, DepthImage, Dynamic)
-
-pub fn create_window(
-  title: String,
-  width width: Int,
-  height height: Int,
-) -> Window {
-  let #(color, depth, handle) = create_window_raw(title, width, height)
-
-  Window(width, height, title, color, depth, handle)
-}
-
-pub opaque type Mesh {
-  Mesh(vertices_count: Int, indices_count: Int, handle: Dynamic)
-}
-
-@external(erlang, "fluo_nif", "create_mesh")
-pub fn create_mesh_raw(vertices: List(Vertex), indices: List(Index)) -> Dynamic
-
-@external(erlang, "fluo_nif", "load_mesh")
-pub fn load_mesh_raw(path: String) -> Dynamic
-
-pub fn create_mesh(vertices: List(Vertex), indices: List(Index)) -> Mesh {
-  let handle = create_mesh_raw(vertices, indices)
-
-  Mesh(list.length(vertices), list.length(indices), handle)
-}
-
-pub fn load_mesh(_path: String) -> Mesh {
-  todo
-}
-
-pub opaque type Renderer(params) {
-  Renderer(params: params, frag_name: String, vert_name: String)
-}
-
-pub opaque type ColorImage {
-  ColorImage(width: Int, height: Int)
-}
-
-pub opaque type DepthImage {
-  DepthImage(width: Int, height: Int)
-}
-
-@external(erlang, "fluo_nif", "create_renderer")
-pub fn create_renderer(
-  params: params,
-  vert vert: String,
-  frag frag: String,
-) -> Renderer(params)
-
-@external(erlang, "fluo_nif", "start_rendering")
-pub fn start_rendering() -> Nil
-
-@external(erlang, "fluo_nif", "draw")
-pub fn draw(
-  renderer: Renderer(params),
-  mesh: Mesh,
-  params: params,
-  color color: Option(ColorImage),
-  depth depth: Option(DepthImage),
-) -> Nil
-
-@external(erlang, "fluo_nif", "end_rendering")
-pub fn end_rendering() -> Nil
-
-@external(erlang, "fluo_nif", "present_window")
-pub fn present_window(window: Window) -> Nil
-
-@external(erlang, "fluo_nif", "window_should_close")
-pub fn window_should_close(window: Window) -> Bool
-
-pub const red = Color(1.0, 0.0, 0.0)
-
-pub const green = Color(0.0, 1.0, 0.0)
-
-pub const blue = Color(0.0, 0.0, 1.0)
-
-pub type Event {
-  None
-}
-
-pub fn game_loop(
-  window: Window,
-  callback: fn(Event, fn(Renderer(params), Mesh, params) -> Nil, Float) -> Nil,
-) {
-  case window_should_close(window) {
-    True -> Nil
-    False -> {
-      // start_rendering()
-
-      let delta = 0.016
-
-      let draw = fn(renderer, mesh, params) {
-        let color = Some(window.color)
-        let depth = Some(window.depth)
-
-        draw(renderer, mesh, params, color, depth)
-      }
-
-      callback(None, draw, delta)
-
-      // end_rendering()
-
-      // present_window(window)
-
-      game_loop(window, callback)
-    }
-  }
-}
+import color
+import mesh.{Vec3, Vertex, create_mesh}
+import renderer.{create_renderer}
+import window.{create_window, loop}
 
 pub fn main() {
   let window = create_window("Fluo Window", width: 800, height: 600)
@@ -150,18 +9,21 @@ pub fn main() {
   let mesh =
     create_mesh(
       [
-        Vertex(position: Vec3(0.0, 0.5, 0.0), color: red),
-        Vertex(position: Vec3(-0.5, -0.5, 0.0), color: green),
-        Vertex(position: Vec3(0.5, -0.5, 0.0), color: blue),
+        Vertex(Vec3(0.0, 0.5, 0.0), color.red),
+        Vertex(Vec3(-0.5, -0.5, 0.0), color.green),
+        Vertex(Vec3(0.5, -0.5, 0.0), color.blue),
       ],
       [0, 1, 2],
     )
 
-  // let alpha = 0.0
-  // let renderer = create_renderer(#(alpha), vert: "vert.spv", frag: "frag.spv")
+  let renderer =
+    create_renderer([renderer.F32(10.5)], vert: "vert.spv", frag: "frag.spv")
 
-  game_loop(window, fn(_, _, delta) {
+  loop(window, fn(_, draw, delta) {
+    // draw(renderer, mesh, #(render.Vec3))
+
+    // let alpha = dict.get(renderer.params, "alpha")
+
     Nil
-    // draw(renderer, mesh, #(float.min(alpha +. delta, 1.0)))
   })
 }
