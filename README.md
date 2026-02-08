@@ -20,11 +20,9 @@ pub fn main() {
   let renderer = create_renderer(#(alpha), vert: "vert.spv", frag: "frag.spv")
 
   game_loop(window, fn(_, draw, delta) {
-    draw(
-      renderer, 
-      mesh, 
-      #(float.min(alpha +. delta, 1.0))
-    )
+    let alpha = float.min(alpha +. delta, 1.0)
+        
+    draw(renderer, mesh, #(alpha))
   })
 }
 ```

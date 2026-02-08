@@ -1,21 +1,22 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
+#include <erl_nif.h>
+#include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <stdint.h>
 
-#include "erl_nif.h"
-
-struct Window {
+typedef struct {
     GLFWwindow* handle;
     VkSurfaceKHR surface;
 
     VkSwapchainKHR swapchain;
     VkFormat swapchain_format;
     VkExtent2D swapchain_extent;
+
     uint32_t image_count;
     VkImage* images;
     VkImageView* image_views;
-};
+} window_res_t;
 
 ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 

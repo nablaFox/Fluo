@@ -6,6 +6,8 @@ g++ \
   -fPIC \
   -I/usr/lib/erlang/usr/include \
   -shared \
+  -x c utils.c \
+  -x c renderer.c \
   -x c mesh.c \
   -x c buffer.c \
   -x c device.c \
@@ -14,3 +16,8 @@ g++ \
   -x c++ vma_impl.cpp \
   -o ../priv/libfluo_nif.so \
   -lvulkan -lglfw
+
+cd ../shaders
+
+glslc shader.frag -o frag.spv
+glslc shader.vert -o vert.spv

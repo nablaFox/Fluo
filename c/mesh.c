@@ -1,23 +1,10 @@
 #include "mesh.h"
 
-#include <stdint.h>
-#include <vulkan/vulkan.h>
-
 #include "buffer.h"
 #include "device.h"
+#include "utils.h"
 
 static ErlNifResourceType* MESH_RES_TYPE = NULL;
-
-typedef struct {
-    uint32_t vertices_count;
-    uint32_t indices_count;
-
-    VkBuffer vertex_buf;
-    VmaAllocation vertex_alloc;
-
-    VkBuffer index_buf;
-    VmaAllocation index_alloc;
-} mesh_res_t;
 
 static void mesh_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
@@ -44,44 +31,6 @@ int nif_init_mesh_res(ErlNifEnv* env) {
     if (!MESH_RES_TYPE) return -1;
 
     return 0;
-}
-
-static int is_tag(ErlNifEnv* env, ERL_NIF_TERM term, const char* a,
-                  const char* b) {
-    char buf[32];
-    if (!enif_get_atom(env, term, buf, sizeof(buf), ERL_NIF_LATIN1)) return 0;
-    return (strcmp(buf, a) == 0) || (b && strcmp(buf, b) == 0);
-}
-
-static int decode_f32(ErlNifEnv* env, ERL_NIF_TERM t, float* out) {
-    double d;
-    if (!enif_get_double(env, t, &d)) return 0;
-    *out = (float)d;
-    return 1;
-}
-
-static int decode_vec3(ErlNifEnv* env, ERL_NIF_TERM t, float* x, float* y,
-                       float* z) {
-    const ERL_NIF_TERM* e;
-    int arity = 0;
-    if (!enif_get_tuple(env, t, &arity, &e)) return 0;
-    if (arity != 4) return 0;
-    if (!is_tag(env, e[0], "vec3", "Vec3")) return 0;
-
-    return decode_f32(env, e[1], x) && decode_f32(env, e[2], y) &&
-           decode_f32(env, e[3], z);
-}
-
-static int decode_color(ErlNifEnv* env, ERL_NIF_TERM t, float* r, float* g,
-                        float* b) {
-    const ERL_NIF_TERM* e;
-    int arity = 0;
-    if (!enif_get_tuple(env, t, &arity, &e)) return 0;
-    if (arity != 4) return 0;
-    if (!is_tag(env, e[0], "color", "Color")) return 0;
-
-    return decode_f32(env, e[1], r) && decode_f32(env, e[2], g) &&
-           decode_f32(env, e[3], b);
 }
 
 static int decode_vertex(ErlNifEnv* env, ERL_NIF_TERM t, VertexGPU* out) {

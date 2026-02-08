@@ -1,13 +1,7 @@
 #include "window.h"
 
-#include <GLFW/glfw3.h>
-#include <stdlib.h>
-
 #include "device.h"
-
-typedef struct {
-    struct Window* win;
-} window_res_t;
+#include "utils.h"
 
 static ErlNifResourceType* WINDOW_RES_TYPE = NULL;
 
@@ -15,14 +9,16 @@ static VkSurfaceFormatKHR choose_surface_format(VkSurfaceKHR surface) {
     uint32_t count = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR(g_device.physical_device, surface,
                                          &count, NULL);
+    assert(count > 0);
 
     VkSurfaceFormatKHR* formats =
         (VkSurfaceFormatKHR*)malloc(count * sizeof(VkSurfaceFormatKHR));
+    assert(formats);
+
     vkGetPhysicalDeviceSurfaceFormatsKHR(g_device.physical_device, surface,
                                          &count, formats);
 
     VkSurfaceFormatKHR chosen = formats[0];
-
     for (uint32_t i = 0; i < count; i++) {
         if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
             formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
@@ -39,13 +35,16 @@ static VkPresentModeKHR choose_present_mode(VkSurfaceKHR surface) {
     uint32_t count = 0;
     vkGetPhysicalDeviceSurfacePresentModesKHR(g_device.physical_device, surface,
                                               &count, NULL);
+    assert(count > 0);
 
     VkPresentModeKHR* modes =
         (VkPresentModeKHR*)malloc(count * sizeof(VkPresentModeKHR));
+    assert(modes);
+
     vkGetPhysicalDeviceSurfacePresentModesKHR(g_device.physical_device, surface,
                                               &count, modes);
 
-    VkPresentModeKHR chosen = VK_PRESENT_MODE_FIFO_KHR;  // guaranteed available
+    VkPresentModeKHR chosen = VK_PRESENT_MODE_FIFO_KHR;
 
     for (uint32_t i = 0; i < count; i++) {
         if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
@@ -59,12 +58,12 @@ static VkPresentModeKHR choose_present_mode(VkSurfaceKHR surface) {
 }
 
 static VkExtent2D choose_extent(GLFWwindow* handle,
-                                VkSurfaceCapabilitiesKHR* caps) {
+                                const VkSurfaceCapabilitiesKHR* caps) {
     if (caps->currentExtent.width != UINT32_MAX) {
         return caps->currentExtent;
     }
 
-    int width, height;
+    int width = 0, height = 0;
     glfwGetFramebufferSize(handle, &width, &height);
 
     VkExtent2D extent = {
@@ -84,23 +83,23 @@ static VkExtent2D choose_extent(GLFWwindow* handle,
     return extent;
 }
 
-static void create_swapchain(struct Window* window) {
+static void create_swapchain(window_res_t* w) {
     VkSurfaceCapabilitiesKHR caps;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_device.physical_device,
-                                              window->surface, &caps);
+                                              w->surface, &caps);
 
-    VkSurfaceFormatKHR surface_format = choose_surface_format(window->surface);
-    VkPresentModeKHR present_mode = choose_present_mode(window->surface);
-    VkExtent2D extent = choose_extent(window->handle, &caps);
+    VkSurfaceFormatKHR surface_format = choose_surface_format(w->surface);
+    VkPresentModeKHR present_mode = choose_present_mode(w->surface);
+    VkExtent2D extent = choose_extent(w->handle, &caps);
 
     uint32_t image_count = caps.minImageCount + 1;
     if (caps.maxImageCount > 0 && image_count > caps.maxImageCount) {
         image_count = caps.maxImageCount;
     }
 
-    VkSwapchainCreateInfoKHR create_info = {
+    VkSwapchainCreateInfoKHR ci = {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface = window->surface,
+        .surface = w->surface,
         .minImageCount = image_count,
         .imageFormat = surface_format.format,
         .imageColorSpace = surface_format.colorSpace,
@@ -116,42 +115,44 @@ static void create_swapchain(struct Window* window) {
 
     uint32_t queue_families[] = {g_device.graphics_family,
                                  g_device.present_family};
-
     if (g_device.graphics_family != g_device.present_family) {
-        create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-        create_info.queueFamilyIndexCount = 2;
-        create_info.pQueueFamilyIndices = queue_families;
+        ci.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        ci.queueFamilyIndexCount = 2;
+        ci.pQueueFamilyIndices = queue_families;
     } else {
-        create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     }
 
-    VkResult result = vkCreateSwapchainKHR(
-        g_device.logical_device, &create_info, NULL, &window->swapchain);
-    assert(result == VK_SUCCESS && "failed to create swapchain");
+    VkResult r =
+        vkCreateSwapchainKHR(g_device.logical_device, &ci, NULL, &w->swapchain);
+    assert(r == VK_SUCCESS && "failed to create swapchain");
 
-    window->swapchain_format = surface_format.format;
-    window->swapchain_extent = extent;
+    w->swapchain_format = surface_format.format;
+    w->swapchain_extent = extent;
 }
 
-static void get_swapchain_images(struct Window* window) {
-    vkGetSwapchainImagesKHR(g_device.logical_device, window->swapchain,
-                            &window->image_count, NULL);
+static void get_swapchain_images(window_res_t* w) {
+    vkGetSwapchainImagesKHR(g_device.logical_device, w->swapchain,
+                            &w->image_count, NULL);
+    assert(w->image_count > 0);
 
-    window->images = (VkImage*)malloc(window->image_count * sizeof(VkImage));
-    vkGetSwapchainImagesKHR(g_device.logical_device, window->swapchain,
-                            &window->image_count, window->images);
+    w->images = (VkImage*)malloc(w->image_count * sizeof(VkImage));
+    assert(w->images);
+
+    vkGetSwapchainImagesKHR(g_device.logical_device, w->swapchain,
+                            &w->image_count, w->images);
 }
 
-static void create_image_views(struct Window* window) {
-    window->image_views =
-        (VkImageView*)malloc(window->image_count * sizeof(VkImageView));
+static void create_image_views(window_res_t* w) {
+    w->image_views = (VkImageView*)malloc(w->image_count * sizeof(VkImageView));
+    assert(w->image_views);
 
-    for (uint32_t i = 0; i < window->image_count; i++) {
-        VkImageViewCreateInfo create_info = {
+    for (uint32_t i = 0; i < w->image_count; i++) {
+        VkImageViewCreateInfo ci = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = window->images[i],
+            .image = w->images[i],
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = window->swapchain_format,
+            .format = w->swapchain_format,
             .components =
                 {
                     .r = VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -169,93 +170,103 @@ static void create_image_views(struct Window* window) {
                 },
         };
 
-        VkResult result =
-            vkCreateImageView(g_device.logical_device, &create_info, NULL,
-                              &window->image_views[i]);
-        assert(result == VK_SUCCESS && "failed to create image view");
+        VkResult r = vkCreateImageView(g_device.logical_device, &ci, NULL,
+                                       &w->image_views[i]);
+        assert(r == VK_SUCCESS && "failed to create image view");
     }
 }
 
-static struct Window* create_window(const char* title, size_t width,
-                                    size_t height) {
-    struct Window* window = (struct Window*)calloc(1, sizeof(struct Window));
+static void destroy_window(window_res_t* w) {
+    if (!w) return;
 
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    window->handle =
-        glfwCreateWindow((int)width, (int)height, title, NULL, NULL);
-    assert(window->handle != NULL && "failed to create GLFW window");
-
-    VkResult result = glfwCreateWindowSurface(g_device.instance, window->handle,
-                                              NULL, &window->surface);
-
-    assert(result == VK_SUCCESS && "failed to create window surface");
-
-    create_swapchain(window);
-    get_swapchain_images(window);
-    create_image_views(window);
-
-    return window;
-}
-
-static void destroy_window(struct Window* window) {
-    if (!window) return;
-
-    for (uint32_t i = 0; i < window->image_count; i++) {
-        vkDestroyImageView(g_device.logical_device, window->image_views[i],
-                           NULL);
+    if (w->image_views) {
+        for (uint32_t i = 0; i < w->image_count; i++) {
+            if (w->image_views[i]) {
+                vkDestroyImageView(g_device.logical_device, w->image_views[i],
+                                   NULL);
+                w->image_views[i] = VK_NULL_HANDLE;
+            }
+        }
+        free(w->image_views);
+        w->image_views = NULL;
     }
 
-    free(window->image_views);
-    free(window->images);
+    if (w->images) {
+        free(w->images);
+        w->images = NULL;
+    }
 
-    vkDestroySwapchainKHR(g_device.logical_device, window->swapchain, NULL);
-    vkDestroySurfaceKHR(g_device.instance, window->surface, NULL);
-    glfwDestroyWindow(window->handle);
+    w->image_count = 0;
 
-    free(window);
+    if (w->swapchain) {
+        vkDestroySwapchainKHR(g_device.logical_device, w->swapchain, NULL);
+        w->swapchain = VK_NULL_HANDLE;
+    }
+
+    if (w->surface) {
+        vkDestroySurfaceKHR(g_device.instance, w->surface, NULL);
+        w->surface = VK_NULL_HANDLE;
+    }
+
+    if (w->handle) {
+        glfwDestroyWindow(w->handle);
+        w->handle = NULL;
+    }
 }
 
 static void window_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
-    window_res_t* r = (window_res_t*)obj;
-    if (r->win) {
-        destroy_window(r->win);
-        r->win = NULL;
-    }
+    destroy_window((window_res_t*)obj);
 }
 
 ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
                                const ERL_NIF_TERM argv[]) {
     if (argc != 3) return enif_make_badarg(env);
 
-    int width, height;
+    int width = 0, height = 0;
     if (!enif_get_int(env, argv[1], &width)) return enif_make_badarg(env);
     if (!enif_get_int(env, argv[2], &height)) return enif_make_badarg(env);
+    if (width <= 0 || height <= 0) return enif_make_badarg(env);
 
-    ErlNifBinary title_bin;
-    if (!enif_inspect_binary(env, argv[0], &title_bin))
+    char* title = NULL;
+    if (!get_c_string_from_gleam_string(env, argv[0], &title))
         return enif_make_badarg(env);
 
-    char* title = strndup((char*)title_bin.data, title_bin.size);
-    if (!title) return enif_make_badarg(env);
+    window_res_t* res = (window_res_t*)enif_alloc_resource(
+        WINDOW_RES_TYPE, sizeof(window_res_t));
 
-    struct Window* win = create_window(title, (size_t)width, (size_t)height);
+    if (!res) {
+        free(title);
+        return enif_make_badarg(env);
+    }
+
+    memset(res, 0, sizeof(*res));
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+
+    res->handle = glfwCreateWindow(width, height, title, NULL, NULL);
+
     free(title);
 
-    if (!win) return enif_make_badarg(env);
+    if (!res->handle) {
+        enif_release_resource(res);
+        return enif_make_badarg(env);
+    }
 
-    window_res_t* res =
-        enif_alloc_resource(WINDOW_RES_TYPE, sizeof(window_res_t));
-    res->win = win;
+    VkResult vr = glfwCreateWindowSurface(g_device.instance, res->handle, NULL,
+                                          &res->surface);
+    if (vr != VK_SUCCESS) {
+        enif_release_resource(res);
+        return enif_make_badarg(env);
+    }
+
+    create_swapchain(res);
+    get_swapchain_images(res);
+    create_image_views(res);
 
     ERL_NIF_TERM handle_term = enif_make_resource(env, res);
-
     enif_release_resource(res);
-
-    ERL_NIF_TERM width_term = enif_make_int(env, width);
-    ERL_NIF_TERM height_term = enif_make_int(env, height);
-    ERL_NIF_TERM title_term = argv[0];
 
     ERL_NIF_TERM color_term = enif_make_tuple2(env, enif_make_int(env, width),
                                                enif_make_int(env, height));
@@ -278,23 +289,16 @@ ERL_NIF_TERM nif_window_should_close(ErlNifEnv* env, int argc,
 
     if (arity != 7) return enif_make_badarg(env);
 
-    ERL_NIF_TERM tag = elems[0];
-
-    if (!enif_is_atom(env, tag)) return enif_make_badarg(env);
-
     ERL_NIF_TERM handle_term = elems[6];
 
     window_res_t* res = NULL;
-    if (!enif_get_resource(env, handle_term, WINDOW_RES_TYPE, (void**)&res)) {
-        enif_fprintf(stderr, "Failed to get resource from handle=%T\n",
-                     handle_term);
+    if (!enif_get_resource(env, handle_term, WINDOW_RES_TYPE, (void**)&res))
         return enif_make_badarg(env);
-    }
 
-    if (!res || !res->win) return enif_make_badarg(env);
+    if (!res || !res->handle) return enif_make_badarg(env);
 
     glfwPollEvents();
-    int should_close = glfwWindowShouldClose(res->win->handle);
+    int should_close = glfwWindowShouldClose(res->handle);
 
     return should_close ? enif_make_atom(env, "true")
                         : enif_make_atom(env, "false");
@@ -302,10 +306,8 @@ ERL_NIF_TERM nif_window_should_close(ErlNifEnv* env, int argc,
 
 int nif_init_window_res(ErlNifEnv* env) {
     WINDOW_RES_TYPE =
-        enif_open_resource_type(env, "fluo_nif", "window_res", NULL,
+        enif_open_resource_type(env, "fluo_nif", "window_res", window_res_dtor,
                                 ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER, NULL);
 
-    if (!WINDOW_RES_TYPE) return -1;
-
-    return 0;
+    return WINDOW_RES_TYPE ? 0 : -1;
 }
