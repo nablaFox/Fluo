@@ -6,6 +6,8 @@ g++ \
   -fPIC \
   -I/usr/lib/erlang/usr/include \
   -shared \
+  -x c mesh.c \
+  -x c buffer.c \
   -x c device.c \
   -x c window.c \
   -x c fluo_nif.c \

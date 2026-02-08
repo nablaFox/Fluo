@@ -1,4 +1,5 @@
 import gleam/dynamic.{type Dynamic}
+import gleam/list
 import gleam/option.{type Option, Some}
 
 pub type Color {
@@ -16,10 +17,6 @@ pub type Vertex {
 pub type Index =
   Int
 
-pub opaque type Mesh {
-  Mesh(vertices_count: Int, indices_count: Int, handle: Dynamic)
-}
-
 pub opaque type Window {
   Window(
     width: Int,
@@ -29,6 +26,43 @@ pub opaque type Window {
     depth: DepthImage,
     handle: Dynamic,
   )
+}
+
+@external(erlang, "fluo_nif", "create_window")
+pub fn create_window_raw(
+  title: String,
+  width: Int,
+  height: Int,
+) -> #(ColorImage, DepthImage, Dynamic)
+
+pub fn create_window(
+  title: String,
+  width width: Int,
+  height height: Int,
+) -> Window {
+  let #(color, depth, handle) = create_window_raw(title, width, height)
+
+  Window(width, height, title, color, depth, handle)
+}
+
+pub opaque type Mesh {
+  Mesh(vertices_count: Int, indices_count: Int, handle: Dynamic)
+}
+
+@external(erlang, "fluo_nif", "create_mesh")
+pub fn create_mesh_raw(vertices: List(Vertex), indices: List(Index)) -> Dynamic
+
+@external(erlang, "fluo_nif", "load_mesh")
+pub fn load_mesh_raw(path: String) -> Dynamic
+
+pub fn create_mesh(vertices: List(Vertex), indices: List(Index)) -> Mesh {
+  let handle = create_mesh_raw(vertices, indices)
+
+  Mesh(list.length(vertices), list.length(indices), handle)
+}
+
+pub fn load_mesh(_path: String) -> Mesh {
+  todo
 }
 
 pub opaque type Renderer(params) {
@@ -43,25 +77,12 @@ pub opaque type DepthImage {
   DepthImage(width: Int, height: Int)
 }
 
-@external(erlang, "fluo_nif", "create_window")
-pub fn create_window(
-  title: String,
-  width width: Int,
-  height height: Int,
-) -> Window
-
 @external(erlang, "fluo_nif", "create_renderer")
 pub fn create_renderer(
   params: params,
   vert vert: String,
   frag frag: String,
 ) -> Renderer(params)
-
-@external(erlang, "fluo_nif", "create_mesh")
-pub fn create_mesh(vertices: List(Vertex), indices: List(Index)) -> Mesh
-
-@external(erlang, "fluo_nif", "load_mesh")
-pub fn load_mesh(path: String) -> Mesh
 
 @external(erlang, "fluo_nif", "start_rendering")
 pub fn start_rendering() -> Nil
@@ -125,20 +146,19 @@ pub fn game_loop(
 
 pub fn main() {
   let window = create_window("Fluo Window", width: 800, height: 600)
-  // let mesh =
-  //   create_mesh(
-  //     [
-  //       Vertex(position: Vec3(0.0, 0.5, 0.0), color: red),
-  //       Vertex(position: Vec3(-0.5, -0.5, 0.0), color: green),
-  //       Vertex(position: Vec3(0.5, -0.5, 0.0), color: blue),
-  //     ],
-  //     [0, 1, 2],
-  //   )
+
+  let mesh =
+    create_mesh(
+      [
+        Vertex(position: Vec3(0.0, 0.5, 0.0), color: red),
+        Vertex(position: Vec3(-0.5, -0.5, 0.0), color: green),
+        Vertex(position: Vec3(0.5, -0.5, 0.0), color: blue),
+      ],
+      [0, 1, 2],
+    )
 
   // let alpha = 0.0
-  //
   // let renderer = create_renderer(#(alpha), vert: "vert.spv", frag: "frag.spv")
-  //
 
   game_loop(window, fn(_, _, delta) {
     Nil

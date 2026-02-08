@@ -3,6 +3,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include "erl_nif.h"
+
 struct Window {
     GLFWwindow* handle;
     VkSurfaceKHR surface;
@@ -15,8 +17,8 @@ struct Window {
     VkImageView* image_views;
 };
 
-struct Window* create_window(const char* title, size_t width, size_t height);
+ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
-int window_should_close(struct Window* window);
+ERL_NIF_TERM nif_window_should_close(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
-void destroy_window(struct Window* window);
+int nif_init_window_res(ErlNifEnv* env);

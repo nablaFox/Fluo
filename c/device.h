@@ -25,6 +25,8 @@ struct Device {
     VkDescriptorSet descriptor_set;
     VkPipelineLayout pipeline_layout;
 
+    VkCommandPool upload_cmd_pool;
+
 #ifdef DEBUG
     VkDebugUtilsMessengerEXT debug_messenger;
 #endif

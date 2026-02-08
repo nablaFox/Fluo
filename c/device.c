@@ -443,6 +443,18 @@ static void create_bindless_descriptors(void) {
                            &g_device.pipeline_layout);
 }
 
+static void create_upload_cmd_pool(void) {
+    VkCommandPoolCreateInfo pool_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT |
+                 VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = g_device.graphics_family,
+    };
+
+    vkCreateCommandPool(g_device.logical_device, &pool_info, NULL,
+                        &g_device.upload_cmd_pool);
+}
+
 void init_device() {
     create_instance();
 #ifdef DEBUG
@@ -452,6 +464,7 @@ void init_device() {
     create_logical_device();
     create_allocator();
     create_bindless_descriptors();
+    create_upload_cmd_pool();
 }
 
 void destroy_device() {
@@ -461,6 +474,7 @@ void destroy_device() {
         vkDestroyPipelineLayout(dev, g_device.pipeline_layout, NULL);
         vkDestroyDescriptorPool(dev, g_device.descriptor_pool, NULL);
         vkDestroyDescriptorSetLayout(dev, g_device.descriptor_layout, NULL);
+        vkDestroyCommandPool(dev, g_device.upload_cmd_pool, NULL);
     }
 
     if (g_device.allocator != VK_NULL_HANDLE) {
