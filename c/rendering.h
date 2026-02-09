@@ -12,6 +12,6 @@ ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
 
 ERL_NIF_TERM nif_end_rendering(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
-ERL_NIF_TERM nif_present_window(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);

@@ -16,9 +16,6 @@ typedef struct {
     image_res_t* swapchain_images;
     uint32_t swapchain_image_count;
 
-    image_res_t* depth_image;
-    image_res_t* color_image;
-
     VkSemaphore* image_available_sem;
     VkSemaphore* finished_blitting_sem;
     VkCommandPool blit_cmd_pool;

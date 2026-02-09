@@ -216,13 +216,17 @@ ERL_NIF_TERM nif_end_rendering(ErlNifEnv* env, int argc,
     return enif_make_atom(env, "ok");
 }
 
-ERL_NIF_TERM nif_present_window(ErlNifEnv* env, int argc,
-                                const ERL_NIF_TERM argv[]) {
-    if (argc != 1) return enif_make_badarg(env);
+ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
+                              const ERL_NIF_TERM argv[]) {
+    if (argc != 2) return enif_make_badarg(env);
 
     window_res_t* window = get_window_from_term(env, argv[0]);
 
     if (!window) return enif_make_badarg(env);
+
+    image_res_t* color_image = get_image_from_term(env, argv[1]);
+
+    if (!color_image) return enif_make_badarg(env);
 
     VkDevice dev = g_device.logical_device;
 
@@ -246,7 +250,6 @@ ERL_NIF_TERM nif_present_window(ErlNifEnv* env, int argc,
     THROW_VK_ERROR(env, vkBeginCommandBuffer(blit_cmd, &begin));
 
     image_res_t* swapchain_image = &window->swapchain_images[img_idx];
-    image_res_t* color_image = window->color_image;
 
     transition_image_layout(color_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                             blit_cmd);
@@ -326,6 +329,29 @@ ERL_NIF_TERM nif_present_window(ErlNifEnv* env, int argc,
     return enif_make_atom(env, "ok");
 }
 
+static image_res_t* get_image_from_option(ErlNifEnv* env, ERL_NIF_TERM term) {
+    if (enif_is_atom(env, term)) {
+        char a[16];
+        if (enif_get_atom(env, term, a, sizeof(a), ERL_NIF_LATIN1) &&
+            strcmp(a, "none") == 0) {
+            return NULL;
+        }
+    }
+
+    const ERL_NIF_TERM* elems = NULL;
+    int arity = 0;
+    if (enif_get_tuple(env, term, &arity, &elems) && arity == 2) {
+        char tag[16];
+        if (enif_is_atom(env, elems[0]) &&
+            enif_get_atom(env, elems[0], tag, sizeof(tag), ERL_NIF_LATIN1) &&
+            strcmp(tag, "some") == 0) {
+            return get_image_from_term(env, elems[1]);
+        }
+    }
+
+    return get_image_from_term(env, term);
+}
+
 ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
                            const ERL_NIF_TERM argv[]) {
     const renderer_res_t* renderer = get_renderer_from_term(env, argv[0]);
@@ -338,9 +364,9 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
 
     const ERL_NIF_TERM params = argv[2];
 
-    const image_res_t* color_image = get_image_from_term(env, argv[3]);
+    image_res_t* color_image = get_image_from_option(env, argv[3]);
 
-    const image_res_t* depth_image = get_image_from_term(env, argv[4]);
+    image_res_t* depth_image = get_image_from_option(env, argv[4]);
 
     if (!color_image && !depth_image) return enif_make_badarg(env);
 

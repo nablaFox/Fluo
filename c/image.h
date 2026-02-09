@@ -41,5 +41,3 @@ image_res_t* get_image_from_term(ErlNifEnv* env, ERL_NIF_TERM term);
 ERL_NIF_TERM nif_create_depth_image(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM nif_create_color_image(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-
-ErlNifResourceType* image_resource_type();

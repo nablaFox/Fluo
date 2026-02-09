@@ -50,7 +50,9 @@ static ErlNifFunc nif_funcs[] = {
     {"start_rendering", 0, nif_start_rendering},
     {"draw_mesh", 5, nif_draw_mesh},
     {"end_rendering", 0, nif_end_rendering},
-    {"present_window", 1, nif_present_window},
+    {"swap_buffers", 2, nif_swap_buffers},
+    {"create_depth_image", 2, nif_create_depth_image},
+    {"create_color_image", 2, nif_create_color_image},
 };
 
 ERL_NIF_INIT(fluo_nif, nif_funcs, load, NULL, NULL, unload)

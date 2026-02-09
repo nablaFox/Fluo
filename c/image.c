@@ -397,5 +397,3 @@ ERL_NIF_TERM nif_create_color_image(ErlNifEnv* env, int argc,
     enif_release_resource(img);
     return term;
 }
-
-ErlNifResourceType* image_resource_type() { return IMAGE_RES_TYPE; }
