@@ -1,13 +1,17 @@
 #include "mesh.h"
 
 #include "buffer.h"
+#include "device.h"
 #include "utils.h"
 
 static ErlNifResourceType* MESH_RES_TYPE = NULL;
 
 static void mesh_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
+
     mesh_res_t* m = (mesh_res_t*)obj;
+
+    vkDeviceWaitIdle(g_device.logical_device);
 
     destroy_gpu_buffer(&m->vertex_buffer);
     destroy_gpu_buffer(&m->index_buffer);

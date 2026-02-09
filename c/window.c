@@ -1,5 +1,7 @@
 #include "window.h"
 
+#include <vulkan/vulkan_core.h>
+
 #include "device.h"
 #include "rendering.h"
 #include "utils.h"
@@ -7,36 +9,25 @@
 static ErlNifResourceType* WINDOW_RES_TYPE = NULL;
 
 static int create_sync_structs(window_res_t* w) {
-    if (!w) return -1;
-
     VkDevice dev = g_device.logical_device;
-    if (!dev) return -1;
 
-    w->image_available_sem =
-        (VkSemaphore*)malloc(sizeof(VkSemaphore) * FRAMES_IN_FLIGHT);
+    w->image_available_sem = malloc(sizeof(VkSemaphore) * FRAMES_IN_FLIGHT);
+
     w->finished_blitting_sem =
-        (VkSemaphore*)malloc(sizeof(VkSemaphore) * FRAMES_IN_FLIGHT);
-    w->blit_fences = (VkFence*)malloc(sizeof(VkFence) * FRAMES_IN_FLIGHT);
+        malloc(sizeof(VkSemaphore) * w->swapchain_image_count);
 
-    if (!w->image_available_sem || !w->finished_blitting_sem ||
-        !w->blit_fences) {
-        free(w->image_available_sem);
-        free(w->finished_blitting_sem);
-        free(w->blit_fences);
-        w->image_available_sem = NULL;
-        w->finished_blitting_sem = NULL;
-        w->blit_fences = NULL;
-        return -1;
-    }
+    w->blit_fences = malloc(sizeof(VkFence) * FRAMES_IN_FLIGHT);
+
+    if (!w->image_available_sem || !w->finished_blitting_sem || !w->blit_fences)
+        goto fail_alloc;
 
     memset(w->image_available_sem, 0, sizeof(VkSemaphore) * FRAMES_IN_FLIGHT);
-    memset(w->finished_blitting_sem, 0, sizeof(VkSemaphore) * FRAMES_IN_FLIGHT);
+    memset(w->finished_blitting_sem, 0,
+           sizeof(VkSemaphore) * w->swapchain_image_count);
     memset(w->blit_fences, 0, sizeof(VkFence) * FRAMES_IN_FLIGHT);
 
     VkSemaphoreCreateInfo sem_ci = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-    };
-
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
     VkFenceCreateInfo fence_ci = {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
@@ -47,12 +38,14 @@ static int create_sync_structs(window_res_t* w) {
             VK_SUCCESS)
             goto fail;
 
-        if (vkCreateSemaphore(dev, &sem_ci, NULL,
-                              &w->finished_blitting_sem[i]) != VK_SUCCESS)
-            goto fail;
-
         if (vkCreateFence(dev, &fence_ci, NULL, &w->blit_fences[i]) !=
             VK_SUCCESS)
+            goto fail;
+    }
+
+    for (uint32_t i = 0; i < w->swapchain_image_count; i++) {
+        if (vkCreateSemaphore(dev, &sem_ci, NULL,
+                              &w->finished_blitting_sem[i]) != VK_SUCCESS)
             goto fail;
     }
 
@@ -60,21 +53,24 @@ static int create_sync_structs(window_res_t* w) {
 
 fail:
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        if (w->blit_fences[i]) vkDestroyFence(dev, w->blit_fences[i], NULL);
-        if (w->finished_blitting_sem[i])
-            vkDestroySemaphore(dev, w->finished_blitting_sem[i], NULL);
-        if (w->image_available_sem[i])
+        if (w->blit_fences && w->blit_fences[i])
+            vkDestroyFence(dev, w->blit_fences[i], NULL);
+        if (w->image_available_sem && w->image_available_sem[i])
             vkDestroySemaphore(dev, w->image_available_sem[i], NULL);
     }
 
+    for (uint32_t i = 0; i < w->swapchain_image_count; i++) {
+        if (w->finished_blitting_sem && w->finished_blitting_sem[i])
+            vkDestroySemaphore(dev, w->finished_blitting_sem[i], NULL);
+    }
+
+fail_alloc:
     free(w->image_available_sem);
     free(w->finished_blitting_sem);
     free(w->blit_fences);
-
     w->image_available_sem = NULL;
     w->finished_blitting_sem = NULL;
     w->blit_fences = NULL;
-
     return -1;
 }
 
@@ -360,6 +356,8 @@ static void destroy_window(window_res_t* w) {
 
     VkDevice dev = g_device.logical_device;
 
+    vkDeviceWaitIdle(dev);
+
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
         if (w->blit_fences[i]) vkDestroyFence(dev, w->blit_fences[i], NULL);
     }
@@ -424,6 +422,9 @@ static void destroy_window(window_res_t* w) {
 
 static void window_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
+
+    vkDeviceWaitIdle(g_device.logical_device);
+
     destroy_window((window_res_t*)obj);
 }
 

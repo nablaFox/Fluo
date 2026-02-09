@@ -111,20 +111,27 @@ static int end_single_time_commands(VkCommandBuffer cmd) {
         .pCommandBuffers = &cmd,
     };
 
-    VkFenceCreateInfo fence_info = {.sType =
-                                        VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+    VkFenceCreateInfo fence_info = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+    };
+
     VkFence fence;
     vkCreateFence(g_device.logical_device, &fence_info, NULL, &fence);
 
     VkResult r = vkQueueSubmit(g_device.graphics_queue, 1, &submit, fence);
+
     if (r != VK_SUCCESS) return 0;
 
     r = vkWaitForFences(g_device.logical_device, 1, &fence, VK_TRUE,
                         UINT64_MAX);
+
+    vkDeviceWaitIdle(g_device.logical_device);
+
     vkDestroyFence(g_device.logical_device, fence, NULL);
 
     vkFreeCommandBuffers(g_device.logical_device, g_device.upload_cmd_pool, 1,
                          &cmd);
+
     return r == VK_SUCCESS;
 }
 

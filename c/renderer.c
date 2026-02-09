@@ -62,6 +62,8 @@ static void renderer_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
     renderer_res_t* r = (renderer_res_t*)obj;
 
+    vkDeviceWaitIdle(g_device.logical_device);
+
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
         destroy_gpu_buffer(&r->material_ubo[i]);
         r->material_index[i] = UINT32_MAX;

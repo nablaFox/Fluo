@@ -226,15 +226,15 @@ ERL_NIF_TERM nif_present_window(ErlNifEnv* env, int argc,
 
     VkDevice dev = g_device.logical_device;
 
-    uint32_t img_idx =
-        get_curr_swapchain_idx(window, window->image_available_sem[frame]);
-
-    if (img_idx == UINT32_MAX) return enif_make_atom(env, "out_of_date");
-
     VkCommandBuffer blit_cmd = window->blit_cmds[frame];
 
     vkWaitForFences(dev, 1, &window->blit_fences[frame], VK_TRUE, UINT64_MAX);
     vkResetFences(dev, 1, &window->blit_fences[frame]);
+
+    uint32_t img_idx =
+        get_curr_swapchain_idx(window, window->image_available_sem[frame]);
+
+    if (img_idx == UINT32_MAX) return enif_make_atom(env, "out_of_date");
 
     vkResetCommandBuffer(blit_cmd, 0);
 
@@ -245,18 +245,18 @@ ERL_NIF_TERM nif_present_window(ErlNifEnv* env, int argc,
 
     THROW_VK_ERROR(env, vkBeginCommandBuffer(blit_cmd, &begin));
 
-    image_res_t swapchain_image = window->swapchain_images[img_idx];
+    image_res_t* swapchain_image = &window->swapchain_images[img_idx];
     image_res_t* color_image = window->color_image;
 
     transition_image_layout(color_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                             blit_cmd);
 
-    transition_image_layout(&swapchain_image,
+    transition_image_layout(swapchain_image,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, blit_cmd);
 
-    blit_image(*color_image, swapchain_image, blit_cmd);
+    blit_image(*color_image, *swapchain_image, blit_cmd);
 
-    transition_image_layout(&swapchain_image, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+    transition_image_layout(swapchain_image, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                             blit_cmd);
 
     transition_image_layout(color_image,
@@ -280,14 +280,16 @@ ERL_NIF_TERM nif_present_window(ErlNifEnv* env, int argc,
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .semaphore = window->image_available_sem[frame],
+            .value = 0,
             .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
         },
     };
 
     VkSemaphoreSubmitInfo signal_sem = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .semaphore = window->finished_blitting_sem[frame],
+        .semaphore = window->finished_blitting_sem[img_idx],
         .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+        .value = 0,
     };
 
     VkSubmitInfo2 submit = {
@@ -306,7 +308,7 @@ ERL_NIF_TERM nif_present_window(ErlNifEnv* env, int argc,
     VkPresentInfoKHR present = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &window->finished_blitting_sem[frame],
+        .pWaitSemaphores = &window->finished_blitting_sem[img_idx],
         .swapchainCount = 1,
         .pSwapchains = &window->swapchain,
         .pImageIndices = &img_idx,

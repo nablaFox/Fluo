@@ -298,6 +298,9 @@ void blit_image(image_res_t src, image_res_t dst, VkCommandBuffer cmd) {
 
 static void image_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
+
+    vkDeviceWaitIdle(g_device.logical_device);
+
     destroy_gpu_image((image_res_t*)obj);
 }
 
