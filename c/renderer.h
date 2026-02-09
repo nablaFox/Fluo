@@ -1,9 +1,7 @@
 #pragma once
 
-#include <erl_nif.h>
-#include <vulkan/vulkan.h>
-#include "vk_mem_alloc.h"
 #include "buffer.h"
+#include "rendering.h"
 
 typedef struct {
     uint32_t material_index;
@@ -22,9 +20,16 @@ typedef enum {
 typedef struct {
     VkShaderEXT frag_shader;
     VkShaderEXT vert_shader;
-    GpuBuffer material_ubo;
+    uint32_t material_index[FRAMES_IN_FLIGHT];
+    GpuBuffer material_ubo[FRAMES_IN_FLIGHT];
 } renderer_res_t;
 
 int nif_init_renderer_res(ErlNifEnv* env);
 
 ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+renderer_res_t* get_renderer_from_term(ErlNifEnv* env, ERL_NIF_TERM term);
+
+uint32_t get_material_index_for_frame(const renderer_res_t* r, uint32_t frame);
+
+void update_material_for_frame(ErlNifEnv* env, const renderer_res_t* r, uint32_t frame, ERL_NIF_TERM params);

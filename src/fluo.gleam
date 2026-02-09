@@ -1,6 +1,7 @@
 import color
+import gleam/option.{Some}
 import mesh.{Vec3, Vertex, create_mesh}
-import renderer.{create_renderer}
+import render.{create_renderer}
 import window.{create_window, loop}
 
 pub fn main() {
@@ -16,14 +17,24 @@ pub fn main() {
       [0, 1, 2],
     )
 
+  let alpha = 0.5
+
   let renderer =
-    create_renderer([renderer.F32(10.5)], vert: "vert.spv", frag: "frag.spv")
+    create_renderer([render.F32(alpha)], vert: "vert.spv", frag: "frag.spv")
 
-  loop(window, fn(_, draw, delta) {
-    // draw(renderer, mesh, #(render.Vec3))
+  render.start_rendering()
 
-    // let alpha = dict.get(renderer.params, "alpha")
+  render.draw(
+    renderer,
+    mesh,
+    [render.F32(alpha)],
+    Some(window.color(window)),
+    option.None,
+    // Some(window.depth(window)),
+  )
 
-    Nil
-  })
+  render.end_rendering()
+
+  window.present_window(window)
+  // loop(window, fn(_, draw, _) { draw(renderer, mesh, [render.F32(alpha)]) })
 }

@@ -2,7 +2,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/option.{Some}
 import image.{type ColorImage, type DepthImage}
 import mesh.{type Mesh}
-import renderer.{type Renderer, draw}
+import render.{type Renderer, draw, end_rendering, start_rendering}
 
 pub type Event {
   None
@@ -54,14 +54,23 @@ pub fn title(window: Window) -> String {
   window.title
 }
 
+pub fn color(window: Window) -> ColorImage {
+  window.color
+}
+
+pub fn depth(window: Window) -> DepthImage {
+  window.depth
+}
+
 pub fn loop(
   window: Window,
-  callback: fn(Event, fn(Renderer, Mesh, params) -> Nil, Float) -> Nil,
+  callback: fn(Event, fn(Renderer, Mesh, List(render.Param)) -> Nil, Float) ->
+    Nil,
 ) {
   case window_should_close(window) {
     True -> Nil
     False -> {
-      // start_rendering()
+      start_rendering()
 
       let delta = 0.016
 
@@ -74,9 +83,9 @@ pub fn loop(
 
       callback(None, draw, delta)
 
-      // end_rendering()
+      end_rendering()
 
-      // present_window(window)
+      present_window(window)
 
       loop(window, callback)
     }

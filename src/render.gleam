@@ -59,11 +59,11 @@ pub fn create_renderer(
 @external(erlang, "fluo_nif", "start_rendering")
 pub fn start_rendering() -> Nil
 
-@external(erlang, "fluo_nif", "draw")
+@external(erlang, "fluo_nif", "draw_mesh")
 pub fn draw(
   renderer: Renderer,
   mesh: Mesh,
-  params: params,
+  params: List(Param),
   color color: Option(ColorImage),
   depth depth: Option(DepthImage),
 ) -> Nil

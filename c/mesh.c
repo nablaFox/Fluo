@@ -9,8 +9,8 @@ static void mesh_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
     mesh_res_t* m = (mesh_res_t*)obj;
 
-    destroy_gpu_buffer(&m->vertex);
-    destroy_gpu_buffer(&m->index);
+    destroy_gpu_buffer(&m->vertex_buffer);
+    destroy_gpu_buffer(&m->index_buffer);
 }
 
 int nif_init_mesh_res(ErlNifEnv* env) {
@@ -106,8 +106,8 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
     *res = (mesh_res_t){
         .vertices_count = (uint32_t)vcount,
         .indices_count = (uint32_t)icount,
-        .vertex = (GpuBuffer){0},
-        .index = (GpuBuffer){0},
+        .vertex_buffer = (GpuBuffer){0},
+        .index_buffer = (GpuBuffer){0},
     };
 
     const VkDeviceSize vsize =
@@ -129,32 +129,32 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
 
     const VkAccessFlags shader_access = VK_ACCESS_SHADER_READ_BIT;
 
-    const int vcreate = create_gpu_buffer(&res->vertex, vsize, v_usage,
+    const int vcreate = create_gpu_buffer(&res->vertex_buffer, vsize, v_usage,
                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    const int icreate = create_gpu_buffer(&res->index, isize, i_usage,
+    const int icreate = create_gpu_buffer(&res->index_buffer, isize, i_usage,
                                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     if (!vcreate || !icreate) {
-        destroy_gpu_buffer(&res->vertex);
-        destroy_gpu_buffer(&res->index);
+        destroy_gpu_buffer(&res->vertex_buffer);
+        destroy_gpu_buffer(&res->index_buffer);
         enif_free(indices);
         enif_free(vertices);
         enif_release_resource(res);
         return enif_make_badarg(env);
     }
 
-    const int vok = write_gpu_buffer(&res->vertex, vertices, vsize, 0,
+    const int vok = write_gpu_buffer(&res->vertex_buffer, vertices, vsize, 0,
                                      shader_stages, shader_access);
 
-    const int iok = write_gpu_buffer(&res->index, indices, isize, 0,
+    const int iok = write_gpu_buffer(&res->index_buffer, indices, isize, 0,
                                      shader_stages, shader_access);
 
     enif_free(indices);
     enif_free(vertices);
 
     if (!vok || !iok) {
-        destroy_gpu_buffer(&res->vertex);
-        destroy_gpu_buffer(&res->index);
+        destroy_gpu_buffer(&res->vertex_buffer);
+        destroy_gpu_buffer(&res->index_buffer);
         enif_release_resource(res);
         return enif_make_badarg(env);
     }
@@ -163,4 +163,29 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
     enif_release_resource(res);
 
     return handle_term;
+}
+
+mesh_res_t* get_mesh_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
+    if (!env) return NULL;
+
+    mesh_res_t* res = NULL;
+    ERL_NIF_TERM handle_term = term;
+
+    const ERL_NIF_TERM* elems = NULL;
+    int arity = 0;
+
+    if (enif_get_tuple(env, term, &arity, &elems) && arity > 0) {
+        handle_term = elems[arity - 1];
+    }
+
+    if (!enif_get_resource(env, handle_term, MESH_RES_TYPE, (void**)&res))
+        return NULL;
+
+    if (!res) return NULL;
+
+    if (res->vertices_count == 0 || res->indices_count == 0) return NULL;
+    if (res->vertex_buffer.buffer == VK_NULL_HANDLE) return NULL;
+    if (res->index_buffer.buffer == VK_NULL_HANDLE) return NULL;
+
+    return res;
 }

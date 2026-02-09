@@ -1,6 +1,10 @@
 #include "renderer.h"
 
 #include <assert.h>
+#include <stdatomic.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "device.h"
 #include "utils.h"
@@ -9,6 +13,20 @@ static PFN_vkCreateShadersEXT vkCreateShadersEXT_;
 static PFN_vkDestroyShaderEXT vkDestroyShaderEXT_;
 
 static ErlNifResourceType* RENDERER_RES_TYPE = NULL;
+
+static atomic_uint_fast32_t g_next_material_index = 0;
+
+static uint32_t alloc_material_index(void) {
+    uint32_t idx = atomic_fetch_add(&g_next_material_index, 1);
+
+    if (idx >= MAX_BINDLESS_RESOURCES) {
+        enif_fprintf(stderr, "renderer: MAX_BINDLESS_RESOURCES exceeded (%u)\n",
+                     (unsigned)MAX_BINDLESS_RESOURCES);
+        return UINT32_MAX;
+    }
+
+    return idx;
+}
 
 static uint8_t* read_shader(const char* path, size_t* size) {
     const char* prefix = "shaders/";
@@ -44,7 +62,10 @@ static void renderer_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
     renderer_res_t* r = (renderer_res_t*)obj;
 
-    destroy_gpu_buffer(&r->material_ubo);
+    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        destroy_gpu_buffer(&r->material_ubo[i]);
+        r->material_index[i] = UINT32_MAX;
+    }
 
     if (r->frag_shader) {
         vkDestroyShaderEXT_(g_device.logical_device, r->frag_shader, NULL);
@@ -86,6 +107,30 @@ int nif_init_renderer_res(ErlNifEnv* env) {
     }
 
     return 0;
+}
+
+renderer_res_t* get_renderer_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
+    ERL_NIF_TERM handle_term = term;
+
+    const ERL_NIF_TERM* elems = NULL;
+    int arity = 0;
+
+    if (enif_get_tuple(env, term, &arity, &elems)) {
+        if (arity != 5) return NULL;
+
+        if (!enif_is_atom(env, elems[0])) return NULL;
+        if (!enif_is_identical(elems[0], enif_make_atom(env, "renderer")))
+            return NULL;
+
+        handle_term = elems[4];
+    }
+
+    renderer_res_t* res = NULL;
+
+    if (!enif_get_resource(env, handle_term, RENDERER_RES_TYPE, (void**)&res))
+        return NULL;
+
+    return res;
 }
 
 typedef struct {
@@ -283,24 +328,17 @@ static int build_material_ubo_blob_std140(ErlNifEnv* env,
                 memcpy(blob + off, &p.f[0], 8);
             } break;
             case P_VEC3: {
-                // std140: vec3 occupies 16 bytes; last float already 0 from
-                // memset
                 memcpy(blob + off, &p.f[0], 12);
             } break;
             case P_VEC4: {
                 memcpy(blob + off, &p.f[0], 16);
             } break;
             case P_MAT3: {
-                // Assume input is 9 floats, row-major from Gleam.
-                // GLSL mat3 in std140 is array of 3 vec3 columns with 16-byte
-                // stride. You *must* pick and document an order. Here:
-                // interpret incoming as column-major.
                 for (int col = 0; col < 3; col++) {
                     memcpy(blob + off + col * 16, &p.f[col * 3], 12);
                 }
             } break;
             case P_MAT4: {
-                // GLSL mat4: 4 vec4 columns, contiguous 16-byte stride.
                 memcpy(blob + off, &p.f[0], 64);
             } break;
             default:
@@ -313,6 +351,24 @@ static int build_material_ubo_blob_std140(ErlNifEnv* env,
     *out_blob = blob;
     *out_size = total;
     return 1;
+}
+
+static void cleanup_partial_renderer(renderer_res_t* res) {
+    if (!res) return;
+
+    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        destroy_gpu_buffer(&res->material_ubo[i]);
+        res->material_index[i] = UINT32_MAX;
+    }
+
+    if (res->vert_shader) {
+        vkDestroyShaderEXT_(g_device.logical_device, res->vert_shader, NULL);
+        res->vert_shader = (VkShaderEXT)0;
+    }
+    if (res->frag_shader) {
+        vkDestroyShaderEXT_(g_device.logical_device, res->frag_shader, NULL);
+        res->frag_shader = (VkShaderEXT)0;
+    }
 }
 
 ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
@@ -351,11 +407,13 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
         return enif_make_badarg(env);
     }
 
-    *res = (renderer_res_t){
-        .frag_shader = (VkShaderEXT)0,
-        .vert_shader = (VkShaderEXT)0,
-        .material_ubo = (GpuBuffer){0},
-    };
+    res->frag_shader = (VkShaderEXT)0;
+    res->vert_shader = (VkShaderEXT)0;
+
+    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        res->material_ubo[i] = (GpuBuffer){0};
+        res->material_index[i] = UINT32_MAX;
+    }
 
     VkPushConstantRange push_range = {
         .stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
@@ -432,11 +490,7 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
     size_t ubo_size = 0;
 
     if (!build_material_ubo_blob_std140(env, argv[0], &ubo_blob, &ubo_size)) {
-        vkDestroyShaderEXT_(g_device.logical_device, res->vert_shader, NULL);
-        vkDestroyShaderEXT_(g_device.logical_device, res->frag_shader, NULL);
-        res->vert_shader = (VkShaderEXT)0;
-        res->frag_shader = (VkShaderEXT)0;
-
+        cleanup_partial_renderer(res);
         enif_release_resource(res);
         return enif_make_badarg(env);
     }
@@ -445,38 +499,90 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
     const VkMemoryPropertyFlags ubo_mem = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
-    if (!create_gpu_buffer(&res->material_ubo, (VkDeviceSize)ubo_size,
-                           ubo_usage, ubo_mem)) {
-        enif_free(ubo_blob);
+    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+        if (!create_gpu_buffer(&res->material_ubo[i], (VkDeviceSize)ubo_size,
+                               ubo_usage, ubo_mem)) {
+            enif_free(ubo_blob);
+            cleanup_partial_renderer(res);
+            enif_release_resource(res);
+            return enif_make_badarg(env);
+        }
 
-        vkDestroyShaderEXT_(g_device.logical_device, res->vert_shader, NULL);
-        vkDestroyShaderEXT_(g_device.logical_device, res->frag_shader, NULL);
-        res->vert_shader = (VkShaderEXT)0;
-        res->frag_shader = (VkShaderEXT)0;
+        if (!direct_write_gpu_buffer(&res->material_ubo[i], ubo_blob,
+                                     (VkDeviceSize)ubo_size, 0)) {
+            enif_free(ubo_blob);
+            cleanup_partial_renderer(res);
+            enif_release_resource(res);
+            return enif_make_badarg(env);
+        }
 
-        enif_release_resource(res);
-        return enif_make_badarg(env);
-    }
+        uint32_t slot = alloc_material_index();
+        if (slot == UINT32_MAX) {
+            enif_free(ubo_blob);
+            cleanup_partial_renderer(res);
+            enif_release_resource(res);
+            return enif_make_badarg(env);
+        }
 
-    if (!direct_write_gpu_buffer(&res->material_ubo, ubo_blob,
-                                 (VkDeviceSize)ubo_size, 0)) {
-        enif_free(ubo_blob);
+        res->material_index[i] = slot;
 
-        destroy_gpu_buffer(&res->material_ubo);
+        VkDescriptorBufferInfo bi = {
+            .buffer = res->material_ubo[i].buffer,
+            .offset = 0,
+            .range = (VkDeviceSize)ubo_size,
+        };
 
-        vkDestroyShaderEXT_(g_device.logical_device, res->vert_shader, NULL);
-        vkDestroyShaderEXT_(g_device.logical_device, res->frag_shader, NULL);
-        res->vert_shader = (VkShaderEXT)0;
-        res->frag_shader = (VkShaderEXT)0;
+        VkWriteDescriptorSet w = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = g_device.descriptor_set,
+            .dstBinding = UNIFORM_BINDING,
+            .dstArrayElement = slot,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .pBufferInfo = &bi,
+        };
 
-        enif_release_resource(res);
-        return enif_make_badarg(env);
+        vkUpdateDescriptorSets(g_device.logical_device, 1, &w, 0, NULL);
     }
 
     enif_free(ubo_blob);
+    ubo_blob = NULL;
 
     ERL_NIF_TERM handle_term = enif_make_resource(env, res);
     enif_release_resource(res);
 
     return enif_make_tuple3(env, argv[1], argv[2], handle_term);
+}
+
+uint32_t get_material_index_for_frame(const renderer_res_t* r, uint32_t frame) {
+    if (!r) return UINT32_MAX;
+    if (frame >= FRAMES_IN_FLIGHT) return UINT32_MAX;
+    return r->material_index[frame];
+}
+
+void update_material_for_frame(ErlNifEnv* env, const renderer_res_t* r,
+                               uint32_t frame, ERL_NIF_TERM params) {
+    if (!env || !r) return;
+    if (frame >= FRAMES_IN_FLIGHT) return;
+
+    uint8_t* ubo_blob = NULL;
+    size_t ubo_size = 0;
+
+    if (!build_material_ubo_blob_std140(env, params, &ubo_blob, &ubo_size)) {
+        enif_fprintf(stderr, "renderer: failed to decode material params\n");
+        return;
+    }
+
+    GpuBuffer* buf = (GpuBuffer*)&r->material_ubo[frame];
+
+    if (!direct_write_gpu_buffer(buf, ubo_blob, (VkDeviceSize)ubo_size, 0)) {
+        enif_fprintf(
+            stderr,
+            "renderer: direct_write_gpu_buffer failed (frame=%u, size=%zu)\n",
+            (unsigned)frame, ubo_size);
+        enif_free(ubo_blob);
+        return;
+    }
+
+    enif_free(ubo_blob);
 }

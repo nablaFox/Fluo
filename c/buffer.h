@@ -4,11 +4,6 @@
 #include "vk_mem_alloc.h"
 
 typedef struct {
-    float px, py, pz;
-    float cr, cg, cb;
-} VertexGPU;
-
-typedef struct {
     VkBuffer buffer;
     VmaAllocation alloc;
     VmaAllocationInfo info;

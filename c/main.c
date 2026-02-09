@@ -216,6 +216,7 @@ int main(int argc, char* argv[]) {
 
     VkSemaphore* sem_finished =
         (VkSemaphore*)malloc(window->image_count * sizeof(VkSemaphore));
+
     for (uint32_t i = 0; i < window->image_count; i++) {
         vkCreateSemaphore(dev, &sem_ci, NULL, &sem_finished[i]);
     }
@@ -397,6 +398,7 @@ int main(int argc, char* argv[]) {
 
         VkPipelineStageFlags wait_stage =
             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
         VkSubmitInfo submit = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .waitSemaphoreCount = 1,

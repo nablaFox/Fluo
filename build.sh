@@ -6,6 +6,8 @@ g++ \
   -fPIC \
   -I/usr/lib/erlang/usr/include \
   -shared \
+  -x c image.c \
+  -x c rendering.c \
   -x c utils.c \
   -x c renderer.c \
   -x c mesh.c \
