@@ -10,7 +10,8 @@
   end_rendering/0,
   swap_buffers/2,
   create_color_image/2,
-  create_depth_image/2
+  create_depth_image/2,
+  read_image/1
 ]).
 
 -nifs([
@@ -23,7 +24,8 @@
   end_rendering/0,
   swap_buffers/2,
   create_color_image/2,
-  create_depth_image/2
+  create_depth_image/2,
+  read_image/1
 ]).
 
 -on_load(init/0).
@@ -40,3 +42,4 @@ end_rendering() -> erlang:nif_error(not_loaded).
 swap_buffers(_, _) -> erlang:nif_error(not_loaded).
 create_color_image(_, _) -> erlang:nif_error(not_loaded).
 create_depth_image(_, _) -> erlang:nif_error(not_loaded).
+read_image(_) -> erlang:nif_error(not_loaded).

@@ -187,6 +187,7 @@ static int create_image(image_res_t* out, uint32_t width, uint32_t height,
     }
 
     out->aspect = aspect;
+    out->format = format;
     out->current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     out->extent = (VkExtent2D){.width = width, .height = height};
 
@@ -396,4 +397,114 @@ ERL_NIF_TERM nif_create_color_image(ErlNifEnv* env, int argc,
     ERL_NIF_TERM term = enif_make_resource(env, img);
     enif_release_resource(img);
     return term;
+}
+
+static VkDeviceSize bytes_per_pixel(const image_res_t* img) {
+    switch (img->format) {
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_B8G8R8A8_UNORM:
+            return 4;
+
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
+            return 8;
+
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            return 16;
+
+        default:
+            return 0;
+    }
+}
+
+ERL_NIF_TERM nif_read_image(ErlNifEnv* env, int argc,
+                            const ERL_NIF_TERM argv[]) {
+    if (argc != 1) return enif_make_badarg(env);
+
+    image_res_t* img = get_image_from_term(env, argv[0]);
+    if (!img || img->image == VK_NULL_HANDLE) return enif_make_badarg(env);
+
+    if (!(img->aspect & VK_IMAGE_ASPECT_COLOR_BIT))
+        return enif_make_badarg(env);
+
+    const uint32_t w = img->extent.width;
+    const uint32_t h = img->extent.height;
+    if (w == 0 || h == 0) return enif_make_badarg(env);
+
+    const VkDeviceSize bpp = bytes_per_pixel(img);
+
+    if (bpp == 0) return enif_make_badarg(env);
+
+    const VkDeviceSize size = (VkDeviceSize)w * (VkDeviceSize)h * bpp;
+
+    VkBuffer staging_buf = VK_NULL_HANDLE;
+    VmaAllocation staging_alloc = VK_NULL_HANDLE;
+
+    VkBufferCreateInfo buf_info = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    VmaAllocationCreateInfo alloc_info = {
+        .usage = VMA_MEMORY_USAGE_AUTO,
+        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+    };
+
+    if (vmaCreateBuffer(g_device.allocator, &buf_info, &alloc_info,
+                        &staging_buf, &staging_alloc, NULL) != VK_SUCCESS) {
+        return enif_make_atom(env, "error");
+    }
+
+    VkCommandBuffer cmd = begin_single_time_commands();
+
+    VkImageLayout old_layout = img->current_layout;
+
+    transition_image_layout(img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, cmd);
+
+    VkBufferImageCopy region = {
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = 0,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        .imageOffset = {0, 0, 0},
+        .imageExtent = {w, h, 1},
+    };
+
+    vkCmdCopyImageToBuffer(cmd, img->image,
+                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging_buf, 1,
+                           &region);
+
+    transition_image_layout(img, old_layout, cmd);
+
+    if (!end_single_time_commands(cmd)) {
+        vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
+        return enif_make_atom(env, "error");
+    }
+
+    void* mapped = NULL;
+    if (vmaMapMemory(g_device.allocator, staging_alloc, &mapped) !=
+            VK_SUCCESS ||
+        !mapped) {
+        vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
+        return enif_make_atom(env, "error");
+    }
+
+    vmaInvalidateAllocation(g_device.allocator, staging_alloc, 0, size);
+
+    ERL_NIF_TERM bin_term;
+    unsigned char* bin = enif_make_new_binary(env, (size_t)size, &bin_term);
+    memcpy(bin, mapped, (size_t)size);
+
+    vmaUnmapMemory(g_device.allocator, staging_alloc);
+
+    vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
+
+    return bin_term;
 }

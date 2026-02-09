@@ -514,3 +514,55 @@ void destroy_device() {
     }
     memset(&g_device, 0, sizeof(g_device));
 }
+
+VkCommandBuffer begin_single_time_commands(void) {
+    VkCommandBufferAllocateInfo alloc = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = g_device.upload_cmd_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(g_device.logical_device, &alloc, &cmd);
+
+    VkCommandBufferBeginInfo begin = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    vkBeginCommandBuffer(cmd, &begin);
+    return cmd;
+}
+
+int end_single_time_commands(VkCommandBuffer cmd) {
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submit = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmd,
+    };
+
+    // VkFenceCreateInfo fence_info = {
+    //     .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+    // };
+
+    // VkFence fence;
+    // vkCreateFence(g_device.logical_device, &fence_info, NULL, &fence);
+
+    VkResult r = vkQueueSubmit(g_device.graphics_queue, 1, &submit, NULL);
+
+    if (r != VK_SUCCESS) return 0;
+
+    // r = vkWaitForFences(g_device.logical_device, 1, &fence, VK_TRUE,
+    //                     UINT64_MAX);
+
+    vkDeviceWaitIdle(g_device.logical_device);
+
+    // vkDestroyFence(g_device.logical_device, fence, NULL);
+
+    vkFreeCommandBuffers(g_device.logical_device, g_device.upload_cmd_pool, 1,
+                         &cmd);
+
+    return r == VK_SUCCESS;
+}

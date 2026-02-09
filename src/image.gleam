@@ -14,6 +14,9 @@ fn create_color_image_raw(width: Int, height: Int) -> Dynamic
 @external(erlang, "fluo_nif", "create_depth_image")
 fn create_depth_image_raw(width: Int, height: Int) -> Dynamic
 
+@external(erlang, "fluo_nif", "read_image")
+pub fn read(image: ColorImage) -> BitArray
+
 pub fn create_color_image(width: Int, height: Int) -> ColorImage {
   let handle = create_color_image_raw(width, height)
 

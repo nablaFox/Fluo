@@ -36,3 +36,6 @@ extern struct Device g_device;
 
 void init_device();
 void destroy_device();
+
+VkCommandBuffer begin_single_time_commands(void);
+int end_single_time_commands(VkCommandBuffer cmd);
