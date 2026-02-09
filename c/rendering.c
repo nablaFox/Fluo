@@ -246,20 +246,20 @@ ERL_NIF_TERM nif_present_window(ErlNifEnv* env, int argc,
     THROW_VK_ERROR(env, vkBeginCommandBuffer(blit_cmd, &begin));
 
     image_res_t swapchain_image = window->swapchain_images[img_idx];
-    image_res_t color_image = window->color_image;
+    image_res_t* color_image = window->color_image;
 
-    transition_image_layout(&color_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+    transition_image_layout(color_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                             blit_cmd);
 
     transition_image_layout(&swapchain_image,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, blit_cmd);
 
-    blit_image(color_image, swapchain_image, blit_cmd);
+    blit_image(*color_image, swapchain_image, blit_cmd);
 
     transition_image_layout(&swapchain_image, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                             blit_cmd);
 
-    transition_image_layout(&color_image,
+    transition_image_layout(color_image,
                             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, blit_cmd);
 
     THROW_VK_ERROR(env, vkEndCommandBuffer(blit_cmd));
@@ -342,7 +342,7 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
 
     if (!color_image && !depth_image) return enif_make_badarg(env);
 
-    update_material_for_frame(env, renderer, params, frame);
+    update_material_for_frame(env, renderer, frame, params);
 
     const VkClearColorValue clear_color = {{0.0f, 0.0f, 0.0f, 1.0f}};
 

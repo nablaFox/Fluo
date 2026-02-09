@@ -1,5 +1,4 @@
 import color
-import gleam/option.{Some}
 import mesh.{Vec3, Vertex, create_mesh}
 import render.{create_renderer}
 import window.{create_window, loop}
@@ -10,31 +9,23 @@ pub fn main() {
   let mesh =
     create_mesh(
       [
-        Vertex(Vec3(0.0, 0.5, 0.0), color.red),
-        Vertex(Vec3(-0.5, -0.5, 0.0), color.green),
-        Vertex(Vec3(0.5, -0.5, 0.0), color.blue),
+        Vertex(Vec3(0.0, -0.5, 0.0), color.red),
+        Vertex(Vec3(-0.5, 0.5, 0.0), color.green),
+        Vertex(Vec3(0.5, 0.5, 0.0), color.blue),
       ],
       [0, 1, 2],
     )
 
-  let alpha = 0.5
+  let alpha = 0.0
 
   let renderer =
     create_renderer([render.F32(alpha)], vert: "vert.spv", frag: "frag.spv")
 
-  render.start_rendering()
+  loop(window, alpha, fn(_, draw, _, alpha) {
+    let alpha = alpha +. 0.0001
 
-  render.draw(
-    renderer,
-    mesh,
-    [render.F32(alpha)],
-    Some(window.color(window)),
-    option.None,
-    // Some(window.depth(window)),
-  )
+    draw(renderer, mesh, [render.F32(alpha)])
 
-  render.end_rendering()
-
-  window.present_window(window)
-  // loop(window, fn(_, draw, _) { draw(renderer, mesh, [render.F32(alpha)]) })
+    alpha
+  })
 }

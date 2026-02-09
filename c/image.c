@@ -197,14 +197,14 @@ int create_color_image(image_res_t* out, uint32_t width, uint32_t height,
                        VkImageUsageFlags usage,
                        VkMemoryPropertyFlags memory_properties) {
     return create_image(out, width, height, VK_FORMAT_R16G16B16A16_SFLOAT,
-                        VK_IMAGE_ASPECT_COLOR_BIT, usage, memory_properties);
+                        usage, VK_IMAGE_ASPECT_COLOR_BIT, memory_properties);
 }
 
 int create_depth_image(image_res_t* out, uint32_t width, uint32_t height,
                        VkImageUsageFlags usage,
                        VkMemoryPropertyFlags memory_properties) {
-    return create_image(out, width, height, VK_FORMAT_D32_SFLOAT,
-                        VK_IMAGE_ASPECT_DEPTH_BIT, usage, memory_properties);
+    return create_image(out, width, height, VK_FORMAT_D32_SFLOAT, usage,
+                        VK_IMAGE_ASPECT_DEPTH_BIT, memory_properties);
 }
 
 void destroy_gpu_image(image_res_t* img) {
@@ -394,3 +394,5 @@ ERL_NIF_TERM nif_create_color_image(ErlNifEnv* env, int argc,
     enif_release_resource(img);
     return term;
 }
+
+ErlNifResourceType* image_resource_type() { return IMAGE_RES_TYPE; }

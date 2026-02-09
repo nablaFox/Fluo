@@ -53,4 +53,4 @@ static ErlNifFunc nif_funcs[] = {
     {"present_window", 1, nif_present_window},
 };
 
-ERL_NIF_INIT(fluo_nif, nif_funcs, load, NULL, NULL, NULL)
+ERL_NIF_INIT(fluo_nif, nif_funcs, load, NULL, NULL, unload)

@@ -128,29 +128,6 @@ static int end_single_time_commands(VkCommandBuffer cmd) {
     return r == VK_SUCCESS;
 }
 
-static int create_staging_buffer(VkDeviceSize size, VkBuffer* out_buf,
-                                 VmaAllocation* out_alloc, void** out_mapped) {
-    VkBufferCreateInfo buf_info = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .size = size,
-        .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-    };
-
-    VmaAllocationCreateInfo alloc_info = {
-        .usage = VMA_MEMORY_USAGE_CPU_ONLY,
-        .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT,
-    };
-
-    VmaAllocationInfo info;
-    if (vmaCreateBuffer(g_device.allocator, &buf_info, &alloc_info, out_buf,
-                        out_alloc, &info) != VK_SUCCESS)
-        return 0;
-
-    *out_mapped = info.pMappedData;
-    return 1;
-}
-
 int write_gpu_buffer(GpuBuffer* buf, const void* src, VkDeviceSize size,
                      VkDeviceSize offset, VkPipelineStageFlags dst_stage,
                      VkAccessFlags dst_access) {

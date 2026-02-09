@@ -115,13 +115,6 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
     const VkDeviceSize isize =
         (VkDeviceSize)sizeof(uint32_t) * (VkDeviceSize)icount;
 
-    const VkBufferUsageFlags v_usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                       VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-                                       VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-    const VkBufferUsageFlags i_usage =
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
     const VkPipelineStageFlags shader_stages =
         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
@@ -129,10 +122,15 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
 
     const VkAccessFlags shader_access = VK_ACCESS_SHADER_READ_BIT;
 
-    const int vcreate = create_gpu_buffer(&res->vertex_buffer, vsize, v_usage,
-                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    const int icreate = create_gpu_buffer(&res->index_buffer, isize, i_usage,
-                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    const int vcreate = create_gpu_buffer(
+        &res->vertex_buffer, vsize,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    const int icreate = create_gpu_buffer(
+        &res->index_buffer, isize,
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     if (!vcreate || !icreate) {
         destroy_gpu_buffer(&res->vertex_buffer);

@@ -416,9 +416,7 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
     }
 
     VkPushConstantRange push_range = {
-        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT |
-                      VK_SHADER_STAGE_FRAGMENT_BIT |
-                      VK_SHADER_STAGE_COMPUTE_BIT,
+        .stageFlags = VK_SHADER_STAGE_ALL,
         .offset = 0,
         .size = sizeof(PushConstants),
     };

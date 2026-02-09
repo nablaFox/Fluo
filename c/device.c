@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef DEBUG
+#include <erl_nif.h>
+#endif
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -25,7 +29,7 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
     else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
         prefix = "INFO";
 
-    fprintf(stderr, "[Vulkan %s] %s\n", prefix, callback_data->pMessage);
+    enif_fprintf(stderr, "[Vulkan %s] %s\n", prefix, callback_data->pMessage);
     return VK_FALSE;
 }
 
@@ -218,12 +222,21 @@ static void pick_physical_device(void) {
             .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
             .descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
             .descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE,
+            .pNext = NULL,
+        };
+
+        VkPhysicalDeviceTimelineSemaphoreFeatures timeline_features = {
+            .sType =
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
+            .timelineSemaphore = VK_TRUE,
+            .pNext = &indexing_features,
         };
 
         VkPhysicalDeviceSynchronization2Features sync2_features = {
             .sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
-            .pNext = &indexing_features,
+            .pNext = &timeline_features,
+            .synchronization2 = VK_TRUE,
         };
 
         VkPhysicalDeviceDynamicRenderingFeatures dyn_features = {
@@ -247,6 +260,7 @@ static void pick_physical_device(void) {
 
         if (dyn_features.dynamicRendering && shader_obj_features.shaderObject &&
             sync2_features.synchronization2 &&
+            timeline_features.timelineSemaphore &&
             indexing_features.descriptorBindingPartiallyBound &&
             indexing_features.descriptorBindingVariableDescriptorCount &&
             indexing_features.runtimeDescriptorArray &&
@@ -297,11 +311,18 @@ static void create_logical_device(void) {
         .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
         .descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE,
         .descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE,
+        .pNext = NULL,
+    };
+
+    VkPhysicalDeviceTimelineSemaphoreFeatures timeline_features = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
+        .timelineSemaphore = VK_TRUE,
+        .pNext = &indexing_features,
     };
 
     VkPhysicalDeviceSynchronization2Features sync2_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
-        .pNext = &indexing_features,
+        .pNext = &timeline_features,
         .synchronization2 = VK_TRUE,
     };
 
@@ -469,6 +490,8 @@ void init_device() {
 
 void destroy_device() {
     VkDevice dev = g_device.logical_device;
+
+    vkDeviceWaitIdle(dev);
 
     if (dev != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(dev, g_device.pipeline_layout, NULL);

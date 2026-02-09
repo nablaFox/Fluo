@@ -64,8 +64,9 @@ pub fn depth(window: Window) -> DepthImage {
 
 pub fn loop(
   window: Window,
-  callback: fn(Event, fn(Renderer, Mesh, List(render.Param)) -> Nil, Float) ->
-    Nil,
+  state: s,
+  callback: fn(Event, fn(Renderer, Mesh, List(render.Param)) -> Nil, Float, s) ->
+    s,
 ) {
   case window_should_close(window) {
     True -> Nil
@@ -81,13 +82,13 @@ pub fn loop(
         draw(renderer, mesh, params, color, depth)
       }
 
-      callback(None, draw, delta)
+      let new_state = callback(None, draw, delta, state)
 
       end_rendering()
 
       present_window(window)
 
-      loop(window, callback)
+      loop(window, new_state, callback)
     }
   }
 }

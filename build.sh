@@ -4,6 +4,8 @@ cd c
 
 g++ \
   -fPIC \
+  -Wall \
+  -DDEBUG \
   -I/usr/lib/erlang/usr/include \
   -shared \
   -x c image.c \

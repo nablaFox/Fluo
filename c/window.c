@@ -244,7 +244,8 @@ static void create_swapchain(window_res_t* w) {
         .imageColorSpace = surface_format.colorSpace,
         .imageExtent = extent,
         .imageArrayLayers = 1,
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                      VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         .preTransform = caps.currentTransform,
         .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
         .presentMode = present_mode,
@@ -292,6 +293,8 @@ static void get_swapchain_images_and_create_views(window_res_t* w) {
         w->swapchain_images[i].image = images[i];
         w->swapchain_images[i].alloc = NULL;
         w->swapchain_images[i].current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        w->swapchain_images[i].aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+        w->swapchain_images[i].extent = w->swapchain_extent;
 
         VkImageViewCreateInfo ci = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -324,25 +327,30 @@ static void get_swapchain_images_and_create_views(window_res_t* w) {
 }
 
 static int create_window_attachments(window_res_t* w) {
-    VkImageUsageFlags color_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                    VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    VkImageUsageFlags color_usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
     VkImageUsageFlags depth_usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-    VkMemoryPropertyFlags mem = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    w->color_image = (image_res_t*)enif_alloc_resource(image_resource_type(),
+                                                       sizeof(image_res_t));
+    w->depth_image = (image_res_t*)enif_alloc_resource(image_resource_type(),
+                                                       sizeof(image_res_t));
 
-    if (!create_color_image(&w->color_image, w->swapchain_extent.width,
-                            w->swapchain_extent.height, color_usage, mem)) {
-        return -1;
-    }
+    if (!w->color_image || !w->depth_image) return -1;
 
-    if (!create_depth_image(&w->depth_image, w->swapchain_extent.width,
-                            w->swapchain_extent.height, depth_usage, mem)) {
-        destroy_gpu_image(&w->color_image);
-        memset(&w->color_image, 0, sizeof(w->color_image));
+    *w->color_image = (image_res_t){0};
+    *w->depth_image = (image_res_t){0};
+
+    if (!create_color_image(w->color_image, w->swapchain_extent.width,
+                            w->swapchain_extent.height, color_usage,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
         return -1;
-    }
+
+    if (!create_depth_image(w->depth_image, w->swapchain_extent.width,
+                            w->swapchain_extent.height, depth_usage,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        return -1;
 
     return 0;
 }
@@ -389,11 +397,14 @@ static void destroy_window(window_res_t* w) {
 
     destroy_swapchain_image_views(w);
 
-    destroy_gpu_image(&w->depth_image);
-    memset(&w->depth_image, 0, sizeof(w->depth_image));
-
-    destroy_gpu_image(&w->color_image);
-    memset(&w->color_image, 0, sizeof(w->color_image));
+    if (w->color_image) {
+        enif_release_resource(w->color_image);
+        w->color_image = NULL;
+    }
+    if (w->depth_image) {
+        enif_release_resource(w->depth_image);
+        w->depth_image = NULL;
+    }
 
     if (w->swapchain) {
         vkDestroySwapchainKHR(g_device.logical_device, w->swapchain, NULL);
@@ -488,11 +499,9 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
     ERL_NIF_TERM handle_term = enif_make_resource(env, res);
     enif_release_resource(res);
 
-    ERL_NIF_TERM color_term =
-        nif_create_color_image(env, 2, (ERL_NIF_TERM[]){argv[1], argv[2]});
+    ERL_NIF_TERM color_term = enif_make_resource(env, res->color_image);
 
-    ERL_NIF_TERM depth_term =
-        nif_create_depth_image(env, 2, (ERL_NIF_TERM[]){argv[1], argv[2]});
+    ERL_NIF_TERM depth_term = enif_make_resource(env, res->depth_image);
 
     return enif_make_tuple3(env, color_term, depth_term, handle_term);
 }
