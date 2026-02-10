@@ -10,12 +10,10 @@ fn create_texture_raw(
   pixels: BitArray,
   width: Int,
   height: Int,
-) -> #(Dynamic, image.ColorImage) {
-  todo
-}
+) -> #(image.ColorImage, Dynamic)
 
 pub fn create_texture(pixels: BitArray, width: Int, height: Int) -> Texture {
-  let #(handle, color) = create_texture_raw(pixels, width, height)
+  let #(color, handle) = create_texture_raw(pixels, width, height)
 
   Texture(color, handle)
 }

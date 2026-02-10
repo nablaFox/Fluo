@@ -2,6 +2,7 @@
 #include "mesh.h"
 #include "renderer.h"
 #include "rendering.h"
+#include "texture.h"
 #include "window.h"
 
 static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
@@ -28,6 +29,10 @@ static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     }
 
     if (init_rendering_res() < 0) {
+        return -1;
+    }
+
+    if (nif_init_texture_res(env) < 0) {
         return -1;
     }
 
@@ -59,6 +64,7 @@ static ErlNifFunc nif_funcs[] = {
     {"create_color_image", 2, nif_create_color_image},
     {"read_image", 1, nif_read_image},
     {"window_delta_time", 1, nif_window_delta_time},
+    {"create_texture", 3, nif_create_texture},
 };
 
 ERL_NIF_INIT(fluo_nif, nif_funcs, load, NULL, NULL, unload)

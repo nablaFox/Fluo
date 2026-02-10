@@ -103,6 +103,42 @@ static TransitionInfo get_transition_info(VkImageLayout oldLayout,
         info.dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
     }
 
+    // UNDEFINED -> TRANSFER_DST
+    else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+             newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        info.srcAccessMask = 0;
+        info.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        info.srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        info.dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+
+    // TRANSFER_DST -> SHADER_READ_ONLY
+    else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+             newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        info.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        info.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        info.srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        info.dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+
+    // SHADER_ONLY -> ATTACHMENT_OPTIMAL
+    else if (oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL &&
+             newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+        info.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        info.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        info.srcStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        info.dstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    }
+
+    // ATTACHMENT_OPTIMAL -> SHADER_ONLY
+    else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
+             newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        info.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        info.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        info.srcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        info.dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+
     else {
         fprintf(stderr, "Unsupported layout transition: %d -> %d\n",
                 (int)oldLayout, (int)newLayout);
@@ -112,10 +148,10 @@ static TransitionInfo get_transition_info(VkImageLayout oldLayout,
     return info;
 }
 
-static int create_image(image_res_t* out, uint32_t width, uint32_t height,
-                        VkFormat format, VkImageUsageFlags usage,
-                        VkImageAspectFlags aspect,
-                        VkMemoryPropertyFlags memory_properties) {
+int create_image(image_res_t* out, uint32_t width, uint32_t height,
+                 VkFormat format, VkImageUsageFlags usage,
+                 VkImageAspectFlags aspect,
+                 VkMemoryPropertyFlags memory_properties) {
     if (!out || width == 0 || height == 0) return 0;
 
     *out = (image_res_t){0};
@@ -313,6 +349,19 @@ int nif_init_image_res(ErlNifEnv* env) {
     if (!IMAGE_RES_TYPE) return -1;
 
     return 0;
+}
+
+image_res_t* alloc_image_res(ErlNifEnv* env) {
+    if (!env || !IMAGE_RES_TYPE) return NULL;
+
+    image_res_t* img =
+        (image_res_t*)enif_alloc_resource(IMAGE_RES_TYPE, sizeof(image_res_t));
+
+    if (!img) return NULL;
+
+    *img = (image_res_t){0};
+
+    return img;
 }
 
 image_res_t* get_image_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {

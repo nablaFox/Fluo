@@ -216,7 +216,6 @@ static void pick_physical_device(void) {
             .sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
             .descriptorBindingPartiallyBound = VK_TRUE,
-            .descriptorBindingVariableDescriptorCount = VK_TRUE,
             .runtimeDescriptorArray = VK_TRUE,
             .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
             .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
@@ -305,7 +304,6 @@ static void create_logical_device(void) {
     VkPhysicalDeviceDescriptorIndexingFeatures indexing_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
         .descriptorBindingPartiallyBound = VK_TRUE,
-        .descriptorBindingVariableDescriptorCount = VK_TRUE,
         .runtimeDescriptorArray = VK_TRUE,
         .shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
         .shaderUniformBufferArrayNonUniformIndexing = VK_TRUE,
@@ -385,20 +383,28 @@ static void create_bindless_descriptors(void) {
             .descriptorCount = MAX_BINDLESS_RESOURCES,
             .stageFlags = VK_SHADER_STAGE_ALL,
         },
+        {
+            .binding = SAMPLER_BINDING,
+            .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .descriptorCount = MAX_BINDLESS_RESOURCES,
+            .stageFlags = VK_SHADER_STAGE_ALL,
+        },
     };
 
     VkDescriptorBindingFlags binding_flags[] = {
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+
         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-            VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT |
             VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+
+        VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
     };
 
     VkDescriptorSetLayoutBindingFlagsCreateInfo flags_info = {
         .sType =
             VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
-        .bindingCount = 2,
+        .bindingCount = 3,
         .pBindingFlags = binding_flags,
     };
 
@@ -406,45 +412,42 @@ static void create_bindless_descriptors(void) {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .pNext = &flags_info,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT,
-        .bindingCount = 2,
+        .bindingCount = 3,
         .pBindings = bindings,
     };
 
-    vkCreateDescriptorSetLayout(dev, &layout_info, NULL,
-                                &g_device.descriptor_layout);
+    VkResult r = vkCreateDescriptorSetLayout(dev, &layout_info, NULL,
+                                             &g_device.descriptor_layout);
+    assert(r == VK_SUCCESS);
 
     VkDescriptorPoolSize pool_sizes[] = {
         {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MAX_BINDLESS_RESOURCES},
         {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_BINDLESS_RESOURCES},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_BINDLESS_RESOURCES},
     };
 
     VkDescriptorPoolCreateInfo pool_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
         .maxSets = 1,
-        .poolSizeCount = 2,
+        .poolSizeCount = 3,
         .pPoolSizes = pool_sizes,
     };
 
-    vkCreateDescriptorPool(dev, &pool_info, NULL, &g_device.descriptor_pool);
-
-    uint32_t variable_count = MAX_BINDLESS_RESOURCES;
-    VkDescriptorSetVariableDescriptorCountAllocateInfo variable_info = {
-        .sType =
-            VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO,
-        .descriptorSetCount = 1,
-        .pDescriptorCounts = &variable_count,
-    };
+    r = vkCreateDescriptorPool(dev, &pool_info, NULL,
+                               &g_device.descriptor_pool);
+    assert(r == VK_SUCCESS);
 
     VkDescriptorSetAllocateInfo set_alloc = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .pNext = &variable_info,
         .descriptorPool = g_device.descriptor_pool,
         .descriptorSetCount = 1,
         .pSetLayouts = &g_device.descriptor_layout,
     };
 
-    vkAllocateDescriptorSets(dev, &set_alloc, &g_device.descriptor_set);
+    r = vkAllocateDescriptorSets(dev, &set_alloc, &g_device.descriptor_set);
+
+    assert(r == VK_SUCCESS);
 
     VkPushConstantRange push_range = {
         .stageFlags = VK_SHADER_STAGE_ALL,
@@ -460,8 +463,9 @@ static void create_bindless_descriptors(void) {
         .pPushConstantRanges = &push_range,
     };
 
-    vkCreatePipelineLayout(dev, &pipeline_layout_info, NULL,
-                           &g_device.pipeline_layout);
+    r = vkCreatePipelineLayout(dev, &pipeline_layout_info, NULL,
+                               &g_device.pipeline_layout);
+    assert(r == VK_SUCCESS);
 }
 
 static void create_upload_cmd_pool(void) {
@@ -543,23 +547,11 @@ int end_single_time_commands(VkCommandBuffer cmd) {
         .pCommandBuffers = &cmd,
     };
 
-    // VkFenceCreateInfo fence_info = {
-    //     .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-    // };
-
-    // VkFence fence;
-    // vkCreateFence(g_device.logical_device, &fence_info, NULL, &fence);
-
     VkResult r = vkQueueSubmit(g_device.graphics_queue, 1, &submit, NULL);
 
     if (r != VK_SUCCESS) return 0;
 
-    // r = vkWaitForFences(g_device.logical_device, 1, &fence, VK_TRUE,
-    //                     UINT64_MAX);
-
     vkDeviceWaitIdle(g_device.logical_device);
-
-    // vkDestroyFence(g_device.logical_device, fence, NULL);
 
     vkFreeCommandBuffers(g_device.logical_device, g_device.upload_cmd_pool, 1,
                          &cmd);

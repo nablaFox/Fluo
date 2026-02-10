@@ -9,6 +9,7 @@ g++ \
   -I/usr/lib/erlang/usr/include \
   -shared \
   -x c spirv_reflect.c \
+  -x c texture.c \
   -x c image.c \
   -x c rendering.c \
   -x c utils.c \
@@ -26,3 +27,4 @@ cd ../shaders
 
 glslc shader.frag -o frag.spv
 glslc shader.vert -o vert.spv
+glslc texture.frag -o texture.spv

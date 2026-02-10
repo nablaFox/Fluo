@@ -5,10 +5,11 @@
 
 #include "vk_mem_alloc.h"
 
-#define MAX_BINDLESS_RESOURCES 1024
+#define MAX_BINDLESS_RESOURCES 65536
 
 #define STORAGE_BUFFER_BINDING 0
 #define UNIFORM_BINDING 1
+#define SAMPLER_BINDING 2
 
 struct Device {
     VkInstance instance;

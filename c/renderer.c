@@ -8,6 +8,7 @@
 
 #include "device.h"
 #include "spirv_reflect.h"
+#include "texture.h"
 #include "utils.h"
 
 static PFN_vkCreateShadersEXT vkCreateShadersEXT_;
@@ -395,6 +396,14 @@ static int get_f32_term(ErlNifEnv* env, ERL_NIF_TERM t, float* out) {
     return 1;
 }
 
+static int get_u32_term(ErlNifEnv* env, ERL_NIF_TERM t, uint32_t* out) {
+    unsigned long u = 0;
+    if (!enif_get_ulong(env, t, &u)) return 0;
+    if (u > UINT32_MAX) return 0;
+    *out = (uint32_t)u;
+    return 1;
+}
+
 static int write_bytes(uint8_t* dst, size_t cap, size_t off, const void* src,
                        size_t n) {
     if (off + n > cap) return 0;
@@ -420,6 +429,20 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
     if (get_f32_term(env, t, &f)) {
         *off = align_up(*off, 4);
         return write_bytes(blob, blob_size, *off, &f, 4) ? (*off += 4, 1) : 0;
+    }
+
+    uint32_t u = 0;
+    if (get_u32_term(env, t, &u)) {
+        *off = align_up(*off, 4);
+        return write_bytes(blob, blob_size, *off, &u, 4) ? (*off += 4, 1) : 0;
+    }
+
+    texture_res_t* tex = get_texture_from_term(env, t);
+
+    if (tex) {
+        uint32_t idx = tex->texture_index;
+        *off = align_up(*off, 4);
+        return write_bytes(blob, blob_size, *off, &idx, 4) ? (*off += 4, 1) : 0;
     }
 
     const ERL_NIF_TERM* elems = NULL;

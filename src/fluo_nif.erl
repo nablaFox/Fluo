@@ -16,7 +16,8 @@
   create_color_image/2,
   create_depth_image/2,
   read_image/1,
-  window_delta_time/1
+  window_delta_time/1,
+  create_texture/3
 ]).
 
 -nifs([
@@ -35,7 +36,8 @@
   create_color_image/2,
   create_depth_image/2,
   read_image/1,
-  window_delta_time/1
+  window_delta_time/1,
+  create_texture/3
 ]).
 
 -on_load(init/0).
@@ -58,3 +60,4 @@ create_color_image(_, _) -> erlang:nif_error(not_loaded).
 create_depth_image(_, _) -> erlang:nif_error(not_loaded).
 read_image(_) -> erlang:nif_error(not_loaded).
 window_delta_time(_) -> erlang:nif_error(not_loaded).
+create_texture(_, _, _) -> erlang:nif_error(not_loaded).
