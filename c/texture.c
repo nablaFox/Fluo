@@ -166,6 +166,7 @@ ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
     if (!create_image(img, (uint32_t)width, (uint32_t)height,
+                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                       VK_FORMAT_R8G8B8A8_UNORM, usage,
                       VK_IMAGE_ASPECT_COLOR_BIT, 0)) {
         vkDestroySampler(g_device.logical_device, tex->sampler, NULL);
@@ -192,7 +193,6 @@ ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
 
     if (vmaCreateBuffer(g_device.allocator, &buf_info, &alloc_info,
                         &staging_buf, &staging_alloc, NULL) != VK_SUCCESS) {
-        enif_release_resource(img);
         vkDestroySampler(g_device.logical_device, tex->sampler, NULL);
         tex->sampler = VK_NULL_HANDLE;
         enif_release_resource(img);
@@ -205,7 +205,6 @@ ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
             VK_SUCCESS ||
         !mapped) {
         vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
-        enif_release_resource(img);
         vkDestroySampler(g_device.logical_device, tex->sampler, NULL);
         tex->sampler = VK_NULL_HANDLE;
         enif_release_resource(img);
@@ -244,7 +243,6 @@ ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
 
     if (!end_single_time_commands(cmd)) {
         vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
-        enif_release_resource(img);
         vkDestroySampler(g_device.logical_device, tex->sampler, NULL);
         tex->sampler = VK_NULL_HANDLE;
         enif_release_resource(img);

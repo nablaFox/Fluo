@@ -259,11 +259,9 @@ ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
 
     blit_image(*color_image, *swapchain_image, blit_cmd);
 
-    transition_image_layout(swapchain_image, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                            blit_cmd);
+    transition_iamge_to_optimal_layout(swapchain_image, blit_cmd);
 
-    transition_image_layout(color_image,
-                            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, blit_cmd);
+    transition_iamge_to_optimal_layout(color_image, blit_cmd);
 
     THROW_VK_ERROR(env, vkEndCommandBuffer(blit_cmd));
 

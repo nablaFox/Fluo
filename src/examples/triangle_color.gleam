@@ -1,12 +1,12 @@
 import color.{red}
-import examples/triangle
+import examples/utils
 import render
 import window
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let triangle = triangle.create_triagle()
+  let triangle = utils.create_triagle()
 
   let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 

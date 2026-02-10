@@ -7,11 +7,8 @@
 
 typedef struct {
     float pos[3];
-    float _pad0;
     float normal[3];
-    float _pad1;
     float uv[2];
-    float _pad2[2];
 } VertexGPU;
 
 typedef struct {

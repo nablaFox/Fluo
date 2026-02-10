@@ -1,5 +1,5 @@
 import color.{red}
-import examples/triangle
+import examples/utils
 import gleam/option.{None, Some}
 import mesh
 import render.{create_renderer}
@@ -9,7 +9,7 @@ pub fn main() {
   let window1 = create_window("Fluo Window 1", width: 800, height: 600)
   let window2 = create_window("Fluo Window 2", width: 600, height: 800)
 
-  let mesh = triangle.create_triagle()
+  let mesh = utils.create_triagle()
 
   let renderer = create_renderer(vert: "vert.spv", frag: "frag.spv")
 

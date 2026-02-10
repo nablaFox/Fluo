@@ -10,6 +10,7 @@ typedef struct {
     VkImageView view;
     VkImageAspectFlags aspect;
     VkFormat format;
+    VkImageLayout optimal_layout;
     VkImageLayout current_layout;
     VmaAllocation alloc;
     VkExtent2D extent;
@@ -17,6 +18,7 @@ typedef struct {
 
 // just an image with color format
 int create_color_image(image_res_t* out,
+                       VkImageLayout optimal_layout,
                        uint32_t width,
                        uint32_t height,
                        VkImageUsageFlags usage,
@@ -24,6 +26,7 @@ int create_color_image(image_res_t* out,
 
 // just an image with depth format
 int create_depth_image(image_res_t* out,
+                       VkImageLayout optimal_layout,
                        uint32_t width,
                        uint32_t height,
                        VkImageUsageFlags usage,
@@ -32,6 +35,8 @@ int create_depth_image(image_res_t* out,
 void destroy_gpu_image(image_res_t* img);
 
 void transition_image_layout(image_res_t* img, VkImageLayout newLayout, VkCommandBuffer cmd);
+
+void transition_iamge_to_optimal_layout(image_res_t* img, VkCommandBuffer cmd);
 
 void blit_image(image_res_t src, image_res_t dst, VkCommandBuffer cmd);
 
@@ -42,6 +47,7 @@ image_res_t* alloc_image_res(ErlNifEnv* env);
 int create_image(image_res_t* out,
                  uint32_t width,
                  uint32_t height,
+                 VkImageLayout optimal_layout,
                  VkFormat format,
                  VkImageUsageFlags usage,
                  VkImageAspectFlags aspect,

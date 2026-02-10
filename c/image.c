@@ -149,8 +149,8 @@ static TransitionInfo get_transition_info(VkImageLayout oldLayout,
 }
 
 int create_image(image_res_t* out, uint32_t width, uint32_t height,
-                 VkFormat format, VkImageUsageFlags usage,
-                 VkImageAspectFlags aspect,
+                 VkImageLayout optimal_layout, VkFormat format,
+                 VkImageUsageFlags usage, VkImageAspectFlags aspect,
                  VkMemoryPropertyFlags memory_properties) {
     if (!out || width == 0 || height == 0) return 0;
 
@@ -225,23 +225,26 @@ int create_image(image_res_t* out, uint32_t width, uint32_t height,
     out->aspect = aspect;
     out->format = format;
     out->current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    out->optimal_layout = optimal_layout;
     out->extent = (VkExtent2D){.width = width, .height = height};
 
     return 1;
 }
 
-int create_color_image(image_res_t* out, uint32_t width, uint32_t height,
-                       VkImageUsageFlags usage,
+int create_color_image(image_res_t* out, VkImageLayout optimal_layout,
+                       uint32_t width, uint32_t height, VkImageUsageFlags usage,
                        VkMemoryPropertyFlags memory_properties) {
-    return create_image(out, width, height, VK_FORMAT_R16G16B16A16_SFLOAT,
-                        usage, VK_IMAGE_ASPECT_COLOR_BIT, memory_properties);
+    return create_image(out, width, height, optimal_layout,
+                        VK_FORMAT_R16G16B16A16_SFLOAT, usage,
+                        VK_IMAGE_ASPECT_COLOR_BIT, memory_properties);
 }
 
-int create_depth_image(image_res_t* out, uint32_t width, uint32_t height,
-                       VkImageUsageFlags usage,
+int create_depth_image(image_res_t* out, VkImageLayout optimal_layout,
+                       uint32_t width, uint32_t height, VkImageUsageFlags usage,
                        VkMemoryPropertyFlags memory_properties) {
-    return create_image(out, width, height, VK_FORMAT_D32_SFLOAT, usage,
-                        VK_IMAGE_ASPECT_DEPTH_BIT, memory_properties);
+    return create_image(out, width, height, optimal_layout,
+                        VK_FORMAT_D32_SFLOAT, usage, VK_IMAGE_ASPECT_DEPTH_BIT,
+                        memory_properties);
 }
 
 void destroy_gpu_image(image_res_t* img) {
@@ -291,6 +294,12 @@ void transition_image_layout(image_res_t* img, VkImageLayout new_layout,
                          &barrier);
 
     img->current_layout = new_layout;
+}
+
+void transition_iamge_to_optimal_layout(image_res_t* img, VkCommandBuffer cmd) {
+    if (!img || img->image == VK_NULL_HANDLE) return;
+
+    transition_image_layout(img, img->optimal_layout, cmd);
 }
 
 void blit_image(image_res_t src, image_res_t dst, VkCommandBuffer cmd) {
@@ -406,7 +415,9 @@ ERL_NIF_TERM nif_create_depth_image(ErlNifEnv* env, int argc,
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-    if (!create_depth_image(img, width, height, usage, 0)) {
+    if (!create_depth_image(img,
+                            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                            width, height, usage, 0)) {
         enif_release_resource(img);
         return enif_make_atom(env, "error");
     }
@@ -438,7 +449,8 @@ ERL_NIF_TERM nif_create_color_image(ErlNifEnv* env, int argc,
                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                               VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
-    if (!create_color_image(img, width, height, usage, 0)) {
+    if (!create_color_image(img, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                            width, height, usage, 0)) {
         enif_release_resource(img);
         return enif_make_atom(env, "error");
     }

@@ -5,7 +5,7 @@ cd c
 g++ \
   -fPIC \
   -Wall \
-  -DDEBUG \
+  -O3 \
   -I/usr/lib/erlang/usr/include \
   -shared \
   -x c spirv_reflect.c \

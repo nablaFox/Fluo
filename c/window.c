@@ -211,6 +211,7 @@ static void destroy_swapchain_image_views(window_res_t* w) {
         w->swapchain_images[i].image = VK_NULL_HANDLE;
         w->swapchain_images[i].alloc = NULL;
         w->swapchain_images[i].current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        w->swapchain_images[i].optimal_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     }
 
     free(w->swapchain_images);
@@ -291,6 +292,7 @@ static void get_swapchain_images_and_create_views(window_res_t* w) {
         w->swapchain_images[i].current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
         w->swapchain_images[i].aspect = VK_IMAGE_ASPECT_COLOR_BIT;
         w->swapchain_images[i].extent = w->swapchain_extent;
+        w->swapchain_images[i].optimal_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
         VkImageViewCreateInfo ci = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
