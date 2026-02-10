@@ -8,6 +8,7 @@
   window_mouse_pos/1,
   window_mouse_delta/1,
   create_mesh/2,
+  load_mesh_from_obj/1,
   create_renderer/2,
   start_rendering/0,
   draw_mesh/5,
@@ -28,6 +29,7 @@
   window_mouse_pos/1,
   window_mouse_delta/1,
   create_mesh/2,
+  load_mesh_from_obj/1,
   create_renderer/2,
   start_rendering/0,
   draw_mesh/5,
@@ -51,6 +53,7 @@ window_keys_down(_) -> erlang:nif_error(not_loaded).
 window_mouse_delta(_) -> erlang:nif_error(not_loaded).
 window_mouse_pos(_) -> erlang:nif_error(not_loaded).
 create_mesh(_, _) -> erlang:nif_error(not_loaded).
+load_mesh_from_obj(_) -> erlang:nif_error(not_loaded).
 create_renderer(_, _) -> erlang:nif_error(not_loaded).
 start_rendering() -> erlang:nif_error(not_loaded).
 draw_mesh(_, _, _, _, _) -> erlang:nif_error(not_loaded).

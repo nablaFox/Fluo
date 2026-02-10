@@ -5,7 +5,7 @@ cd c
 g++ \
   -fPIC \
   -Wall \
-  -O3 \
+  -DDEBUG \
   -I/usr/lib/erlang/usr/include \
   -shared \
   -x c spirv_reflect.c \
@@ -19,6 +19,7 @@ g++ \
   -x c device.c \
   -x c window.c \
   -x c fluo_nif.c \
+  -x c++ mesh_obj.cpp \
   -x c++ vma_impl.cpp \
   -o ../priv/libfluo_nif.so \
   -lvulkan -lglfw

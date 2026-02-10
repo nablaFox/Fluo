@@ -55,6 +55,7 @@ static ErlNifFunc nif_funcs[] = {
     {"window_mouse_pos", 1, nif_window_mouse_pos},
     {"window_mouse_delta", 1, nif_window_mouse_delta},
     {"create_mesh", 2, nif_create_mesh},
+    {"load_mesh_from_obj", 1, nif_load_mesh_from_obj},
     {"create_renderer", 2, nif_create_renderer},
     {"start_rendering", 0, nif_start_rendering},
     {"draw_mesh", 5, nif_draw_mesh},

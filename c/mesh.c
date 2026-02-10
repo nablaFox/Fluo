@@ -82,9 +82,8 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
     const ERL_NIF_TERM indices_list = argv[1];
 
     unsigned int vcount = 0;
-    if (!enif_get_list_length(env, vertices_list, &vcount))
+    if (!enif_get_list_length(env, vertices_list, &vcount) || vcount == 0)
         return enif_make_badarg(env);
-    if (vcount == 0) return enif_make_badarg(env);
 
     VertexGPU* vertices = (VertexGPU*)enif_alloc(sizeof(VertexGPU) * vcount);
     if (!vertices) return enif_make_badarg(env);
@@ -102,13 +101,7 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
     }
 
     unsigned int icount = 0;
-
-    if (!enif_get_list_length(env, indices_list, &icount)) {
-        enif_free(vertices);
-        return enif_make_badarg(env);
-    }
-
-    if (icount == 0) {
+    if (!enif_get_list_length(env, indices_list, &icount) || icount == 0) {
         enif_free(vertices);
         return enif_make_badarg(env);
     }
@@ -136,17 +129,55 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
     }
 
     mesh_res_t* res =
-        (mesh_res_t*)enif_alloc_resource(MESH_RES_TYPE, sizeof(mesh_res_t));
+        create_mesh(vertices, (uint32_t)vcount, indices, (uint32_t)icount);
 
-    if (!res) {
-        enif_free(indices);
-        enif_free(vertices);
-        return enif_make_badarg(env);
+    enif_free(indices);
+    enif_free(vertices);
+
+    if (!res) return enif_make_badarg(env);
+
+    ERL_NIF_TERM handle_term = enif_make_resource(env, res);
+    enif_release_resource(res);
+    return handle_term;
+}
+
+mesh_res_t* get_mesh_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
+    if (!env) return NULL;
+
+    mesh_res_t* res = NULL;
+    ERL_NIF_TERM handle_term = term;
+
+    const ERL_NIF_TERM* elems = NULL;
+    int arity = 0;
+
+    if (enif_get_tuple(env, term, &arity, &elems) && arity > 0) {
+        handle_term = elems[arity - 1];
     }
 
+    if (!enif_get_resource(env, handle_term, MESH_RES_TYPE, (void**)&res))
+        return NULL;
+
+    if (!res) return NULL;
+
+    if (res->vertices_count == 0 || res->indices_count == 0) return NULL;
+    if (res->vertex_buffer.buffer == VK_NULL_HANDLE) return NULL;
+    if (res->index_buffer.buffer == VK_NULL_HANDLE) return NULL;
+
+    return res;
+}
+
+mesh_res_t* create_mesh(const VertexGPU* vertices, uint32_t vcount,
+                        const uint32_t* indices, uint32_t icount) {
+    if (!vertices || !indices) return NULL;
+    if (vcount == 0 || icount == 0) return NULL;
+
+    mesh_res_t* res =
+        (mesh_res_t*)enif_alloc_resource(MESH_RES_TYPE, sizeof(mesh_res_t));
+    if (!res) return NULL;
+
     *res = (mesh_res_t){
-        .vertices_count = (uint32_t)vcount,
-        .indices_count = (uint32_t)icount,
+        .vertices_count = vcount,
+        .indices_count = icount,
         .vertex_buffer = (GpuBuffer){0},
         .index_buffer = (GpuBuffer){0},
     };
@@ -176,10 +207,8 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
     if (!vcreate || !icreate) {
         destroy_gpu_buffer(&res->vertex_buffer);
         destroy_gpu_buffer(&res->index_buffer);
-        enif_free(indices);
-        enif_free(vertices);
         enif_release_resource(res);
-        return enif_make_badarg(env);
+        return NULL;
     }
 
     const int vok = write_gpu_buffer(&res->vertex_buffer, vertices, vsize, 0,
@@ -188,43 +217,12 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
     const int iok = write_gpu_buffer(&res->index_buffer, indices, isize, 0,
                                      shader_stages, shader_access);
 
-    enif_free(indices);
-    enif_free(vertices);
-
     if (!vok || !iok) {
         destroy_gpu_buffer(&res->vertex_buffer);
         destroy_gpu_buffer(&res->index_buffer);
         enif_release_resource(res);
-        return enif_make_badarg(env);
-    }
-
-    ERL_NIF_TERM handle_term = enif_make_resource(env, res);
-    enif_release_resource(res);
-
-    return handle_term;
-}
-
-mesh_res_t* get_mesh_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
-    if (!env) return NULL;
-
-    mesh_res_t* res = NULL;
-    ERL_NIF_TERM handle_term = term;
-
-    const ERL_NIF_TERM* elems = NULL;
-    int arity = 0;
-
-    if (enif_get_tuple(env, term, &arity, &elems) && arity > 0) {
-        handle_term = elems[arity - 1];
-    }
-
-    if (!enif_get_resource(env, handle_term, MESH_RES_TYPE, (void**)&res))
         return NULL;
-
-    if (!res) return NULL;
-
-    if (res->vertices_count == 0 || res->indices_count == 0) return NULL;
-    if (res->vertex_buffer.buffer == VK_NULL_HANDLE) return NULL;
-    if (res->index_buffer.buffer == VK_NULL_HANDLE) return NULL;
+    }
 
     return res;
 }

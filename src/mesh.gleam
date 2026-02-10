@@ -20,15 +20,11 @@ pub opaque type Mesh {
 @external(erlang, "fluo_nif", "create_mesh")
 fn create_mesh_raw(vertices: List(Vertex), indices: List(Int)) -> Dynamic
 
-@external(erlang, "fluo_nif", "load_mesh")
-pub fn load_mesh_raw(path: String) -> Dynamic
+@external(erlang, "fluo_nif", "load_mesh_from_obj")
+pub fn load_obj(_path: String) -> Mesh
 
 pub fn create_mesh(vertices: List(Vertex), indices: List(Int)) -> Mesh {
   let handle = create_mesh_raw(vertices, indices)
 
   Mesh(list.length(vertices), list.length(indices), handle)
-}
-
-pub fn load_mesh(_path: String) -> Mesh {
-  todo
 }

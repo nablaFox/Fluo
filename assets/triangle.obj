@@ -1,0 +1,21 @@
+# triangle.obj
+
+o Triangle
+
+# Positions
+v  0.0 -0.5 0.0
+v -0.5  0.5 0.0
+v  0.5  0.5 0.0
+
+# Texture coordinates
+vt 0.5 0.0
+vt 0.0 1.0
+vt 1.0 1.0
+
+# Normals
+vn 1.0 0.0 0.0
+vn 0.0 1.0 0.0
+vn 0.0 0.0 1.0
+
+# Face (OBJ indices are 1-based: v/vt/vn)
+f 1/1/1 2/2/2 3/3/3

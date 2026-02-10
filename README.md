@@ -15,7 +15,7 @@ import window
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let mesh = mesh.load_mesh("assets/triangle.obj")
+  let mesh = mesh.load_obj("assets/triangle.obj")
 
   let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 
