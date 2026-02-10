@@ -8,21 +8,23 @@ Currently under development.
 #### Gleam cpu code
 
 ```gleam
-import fluo.{create_window, load_mesh, create_renderer, game_loop}
+import mesh
+import render
+import window
 
 pub fn main() {
-  let window = create_window("Fluo Window", width: 800, height: 600)
+  let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let mesh = load_mesh("assets/triangle.obj")
+  let mesh = mesh.load_mesh("assets/triangle.obj")
 
-  let alpha = 0.0
+  let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 
-  let renderer = create_renderer(#(alpha), vert: "vert.spv", frag: "frag.spv")
+  window.loop(window, 0.0, fn(_, draw, delta, alpha) {
+    let alpha = alpha +. delta
 
-  game_loop(window, fn(_, draw, delta) {
-    let alpha = float.min(alpha +. delta, 1.0)
-        
     draw(renderer, mesh, #(alpha))
+
+    alpha
   })
 }
 ```

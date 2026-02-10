@@ -18,12 +18,9 @@ pub fn main() {
       [0, 1, 2],
     )
 
-  let alpha = 0.0
+  let renderer = create_renderer(vert: "vert.spv", frag: "frag.spv")
 
-  let renderer =
-    create_renderer([render.F32(alpha)], vert: "vert.spv", frag: "frag.spv")
-
-  game_loop(window1, window2, renderer, mesh, alpha)
+  game_loop(window1, window2, renderer, mesh, 0.0)
 }
 
 fn game_loop(
@@ -31,7 +28,7 @@ fn game_loop(
   window2: window.Window,
   renderer: render.Renderer,
   mesh: mesh.Mesh,
-  alpha,
+  alpha: Float,
 ) {
   case window.window_should_close(window1) {
     True -> Nil
@@ -40,7 +37,7 @@ fn game_loop(
 
       let color = window.color(window1)
 
-      render.draw(renderer, mesh, [render.F32(alpha)], Some(color), None)
+      render.draw(renderer, mesh, #(alpha), Some(color), None)
 
       render.end_rendering()
 

@@ -15,18 +15,13 @@ pub fn main() {
       [0, 1, 2],
     )
 
-  let renderer =
-    render.create_renderer(
-      [render.F32(1.0)],
-      vert: "vert.spv",
-      frag: "frag.spv",
-    )
+  let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 
   let color = image.create_color_image(500, 500)
 
   render.start_rendering()
 
-  render.draw(renderer, mesh, [render.F32(1.0)], Some(color), None)
+  render.draw(renderer, mesh, #(1.0), Some(color), None)
 
   render.end_rendering()
 

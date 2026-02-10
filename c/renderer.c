@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "device.h"
+#include "spirv_reflect.h"
 #include "utils.h"
 
 static PFN_vkCreateShadersEXT vkCreateShadersEXT_;
@@ -56,6 +57,39 @@ static uint8_t* read_shader(const char* path, size_t* size) {
 
     fclose(f);
     return data;
+}
+
+static int reflect_ubo_size(const uint32_t* code, size_t code_size,
+                            uint32_t set, uint32_t binding, size_t* out_size) {
+    SpvReflectShaderModule module;
+
+    if (spvReflectCreateShaderModule(code_size, code, &module) !=
+        SPV_REFLECT_RESULT_SUCCESS)
+        return 0;
+
+    uint32_t count = 0;
+    spvReflectEnumerateDescriptorBindings(&module, &count, NULL);
+
+    SpvReflectDescriptorBinding** bindings = malloc(sizeof(*bindings) * count);
+
+    spvReflectEnumerateDescriptorBindings(&module, &count, bindings);
+
+    int found = 0;
+
+    for (uint32_t i = 0; i < count; i++) {
+        SpvReflectDescriptorBinding* b = bindings[i];
+
+        if (b->descriptor_type == SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER &&
+            b->set == set && b->binding == binding) {
+            *out_size = b->block.size;
+            found = 1;
+            break;
+        }
+    }
+
+    free(bindings);
+    spvReflectDestroyShaderModule(&module);
+    return found;
 }
 
 static void renderer_res_dtor(ErlNifEnv* env, void* obj) {
@@ -118,13 +152,13 @@ renderer_res_t* get_renderer_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
     int arity = 0;
 
     if (enif_get_tuple(env, term, &arity, &elems)) {
-        if (arity != 5) return NULL;
+        if (arity != 4) return NULL;
 
         if (!enif_is_atom(env, elems[0])) return NULL;
         if (!enif_is_identical(elems[0], enif_make_atom(env, "renderer")))
             return NULL;
 
-        handle_term = elems[4];
+        handle_term = elems[3];
     }
 
     renderer_res_t* res = NULL;
@@ -133,226 +167,6 @@ renderer_res_t* get_renderer_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
         return NULL;
 
     return res;
-}
-
-typedef struct {
-    param_kind_t kind;
-    float f[16];
-    int i;
-} decoded_param_t;
-
-static int get_atom(ErlNifEnv* env, ERL_NIF_TERM t, char* out, unsigned cap) {
-    return enif_get_atom(env, t, out, cap, ERL_NIF_LATIN1);
-}
-
-static inline size_t align_up(size_t x, size_t a) {
-    return (x + (a - 1)) & ~(a - 1);
-}
-
-static int decode_param(ErlNifEnv* env, ERL_NIF_TERM term,
-                        decoded_param_t* out) {
-    const ERL_NIF_TERM* tup = NULL;
-    int arity = 0;
-    if (!enif_get_tuple(env, term, &arity, &tup) || arity < 2) return 0;
-
-    char tag[16];
-    if (!get_atom(env, tup[0], tag, sizeof(tag))) return 0;
-
-    if (strcmp(tag, "bool") == 0 && arity == 2) {
-        int b;
-
-        if (!enif_get_int(env, tup[1], &b)) {
-            if (enif_is_identical(tup[1], enif_make_atom(env, "true")))
-                b = 1;
-            else if (enif_is_identical(tup[1], enif_make_atom(env, "false")))
-                b = 0;
-            else
-                return 0;
-        }
-
-        out->kind = P_BOOL;
-        out->i = b ? 1 : 0;
-        return 1;
-    }
-
-    if (strcmp(tag, "f32") == 0 && arity == 2) {
-        double d;
-        if (!enif_get_double(env, tup[1], &d)) return 0;
-        out->kind = P_F32;
-        out->f[0] = (float)d;
-        return 1;
-    }
-
-    if (strcmp(tag, "vec2") == 0 && arity == 3) {
-        double a, b;
-        if (!enif_get_double(env, tup[1], &a)) return 0;
-        if (!enif_get_double(env, tup[2], &b)) return 0;
-        out->kind = P_VEC2;
-        out->f[0] = (float)a;
-        out->f[1] = (float)b;
-        return 1;
-    }
-
-    if (strcmp(tag, "vec3") == 0 && arity == 4) {
-        double a, b, c;
-        if (!enif_get_double(env, tup[1], &a)) return 0;
-        if (!enif_get_double(env, tup[2], &b)) return 0;
-        if (!enif_get_double(env, tup[3], &c)) return 0;
-        out->kind = P_VEC3;
-        out->f[0] = (float)a;
-        out->f[1] = (float)b;
-        out->f[2] = (float)c;
-        return 1;
-    }
-
-    if (strcmp(tag, "vec4") == 0 && arity == 5) {
-        double a, b, c, d;
-        if (!enif_get_double(env, tup[1], &a)) return 0;
-        if (!enif_get_double(env, tup[2], &b)) return 0;
-        if (!enif_get_double(env, tup[3], &c)) return 0;
-        if (!enif_get_double(env, tup[4], &d)) return 0;
-        out->kind = P_VEC4;
-        out->f[0] = (float)a;
-        out->f[1] = (float)b;
-        out->f[2] = (float)c;
-        out->f[3] = (float)d;
-        return 1;
-    }
-
-    if (strcmp(tag, "mat3") == 0 && arity == 10) {
-        out->kind = P_MAT3;
-        for (int i = 0; i < 9; i++) {
-            double d;
-            if (!enif_get_double(env, tup[1 + i], &d)) return 0;
-            out->f[i] = (float)d;
-        }
-        return 1;
-    }
-
-    if (strcmp(tag, "mat4") == 0 && arity == 17) {
-        out->kind = P_MAT4;
-        for (int i = 0; i < 16; i++) {
-            double d;
-            if (!enif_get_double(env, tup[1 + i], &d)) return 0;
-            out->f[i] = (float)d;
-        }
-        return 1;
-    }
-
-    return 0;
-}
-
-static void std140_info(param_kind_t k, size_t* align, size_t* size) {
-    switch (k) {
-        case P_BOOL:
-            *align = 4;
-            *size = 4;
-            break;
-        case P_F32:
-            *align = 4;
-            *size = 4;
-            break;
-        case P_VEC2:
-            *align = 8;
-            *size = 8;
-            break;
-        case P_VEC3:
-            *align = 16;
-            *size = 16;
-            break;
-        case P_VEC4:
-            *align = 16;
-            *size = 16;
-            break;
-        case P_MAT3:
-            *align = 16;
-            *size = 48;
-            break;
-        case P_MAT4:
-            *align = 16;
-            *size = 64;
-            break;
-        default:
-            *align = 16;
-            *size = 16;
-            break;
-    }
-}
-
-static int build_material_ubo_blob_std140(ErlNifEnv* env,
-                                          ERL_NIF_TERM params_list,
-                                          uint8_t** out_blob,
-                                          size_t* out_size) {
-    unsigned len = 0;
-    if (!enif_get_list_length(env, params_list, &len)) return 0;
-
-    size_t off = 0;
-    ERL_NIF_TERM head, tail = params_list;
-
-    for (unsigned i = 0; i < len; i++) {
-        if (!enif_get_list_cell(env, tail, &head, &tail)) return 0;
-
-        decoded_param_t p;
-        if (!decode_param(env, head, &p)) return 0;
-
-        size_t al, sz;
-        std140_info(p.kind, &al, &sz);
-        off = align_up(off, al);
-        off += sz;
-    }
-
-    size_t total = align_up(off, 16);
-    uint8_t* blob = (uint8_t*)enif_alloc(total);
-    if (!blob) return 0;
-    memset(blob, 0, total);
-
-    off = 0;
-    tail = params_list;
-    for (unsigned i = 0; i < len; i++) {
-        enif_get_list_cell(env, tail, &head, &tail);
-
-        decoded_param_t p;
-        decode_param(env, head, &p);
-
-        size_t al, sz;
-        std140_info(p.kind, &al, &sz);
-        off = align_up(off, al);
-
-        switch (p.kind) {
-            case P_BOOL: {
-                int32_t v = (int32_t)p.i;
-                memcpy(blob + off, &v, 4);
-            } break;
-            case P_F32: {
-                memcpy(blob + off, &p.f[0], 4);
-            } break;
-            case P_VEC2: {
-                memcpy(blob + off, &p.f[0], 8);
-            } break;
-            case P_VEC3: {
-                memcpy(blob + off, &p.f[0], 12);
-            } break;
-            case P_VEC4: {
-                memcpy(blob + off, &p.f[0], 16);
-            } break;
-            case P_MAT3: {
-                for (int col = 0; col < 3; col++) {
-                    memcpy(blob + off + col * 16, &p.f[col * 3], 12);
-                }
-            } break;
-            case P_MAT4: {
-                memcpy(blob + off, &p.f[0], 64);
-            } break;
-            default:
-                break;
-        }
-
-        off += sz;
-    }
-
-    *out_blob = blob;
-    *out_size = total;
-    return 1;
 }
 
 static void cleanup_partial_renderer(renderer_res_t* res) {
@@ -375,15 +189,15 @@ static void cleanup_partial_renderer(renderer_res_t* res) {
 
 ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
                                  const ERL_NIF_TERM argv[]) {
-    if (argc != 3) return enif_make_badarg(env);
+    if (argc != 2) return enif_make_badarg(env);
 
     char* vert_path = NULL;
     char* frag_path = NULL;
 
-    if (!get_c_string_from_gleam_string(env, argv[1], &vert_path))
+    if (!get_c_string_from_gleam_string(env, argv[0], &vert_path))
         return enif_make_badarg(env);
 
-    if (!get_c_string_from_gleam_string(env, argv[2], &frag_path)) {
+    if (!get_c_string_from_gleam_string(env, argv[1], &frag_path)) {
         free(vert_path);
         return enif_make_badarg(env);
     }
@@ -403,6 +217,7 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
 
     renderer_res_t* res = (renderer_res_t*)enif_alloc_resource(
         RENDERER_RES_TYPE, sizeof(renderer_res_t));
+
     if (!res) {
         free(vert_code);
         free(frag_code);
@@ -472,86 +287,83 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
 
     VkShaderEXT shaders_out[2] = {(VkShaderEXT)0, (VkShaderEXT)0};
 
-    VkResult vr = vkCreateShadersEXT_(g_device.logical_device, 2, shader_infos,
-                                      NULL, shaders_out);
+    size_t vert_ubo_size = 0, frag_ubo_size = 0;
+
+    int vert_has_ubo = reflect_ubo_size((const uint32_t*)vert_code, vert_size,
+                                        0, UNIFORM_BINDING, &vert_ubo_size);
+
+    int frag_has_ubo = reflect_ubo_size((const uint32_t*)frag_code, frag_size,
+                                        0, UNIFORM_BINDING, &frag_ubo_size);
+
+    if (!vert_has_ubo) vert_ubo_size = 0;
+    if (!frag_has_ubo) frag_ubo_size = 0;
+
+    size_t ubo_size =
+        vert_ubo_size > frag_ubo_size ? vert_ubo_size : frag_ubo_size;
+
+    if (vkCreateShadersEXT_(g_device.logical_device, 2, shader_infos, NULL,
+                            shaders_out) != VK_SUCCESS) {
+        free(vert_code);
+        free(frag_code);
+        enif_release_resource(res);
+        return enif_make_badarg(env);
+    }
 
     free(vert_code);
     free(frag_code);
 
-    if (vr != VK_SUCCESS) {
-        enif_release_resource(res);
-        return enif_make_badarg(env);
-    }
-
     res->vert_shader = shaders_out[0];
     res->frag_shader = shaders_out[1];
 
-    uint8_t* ubo_blob = NULL;
-    size_t ubo_size = 0;
+    if (ubo_size > 0) {
+        const VkBufferUsageFlags ubo_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        const VkMemoryPropertyFlags ubo_mem =
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
-    if (!build_material_ubo_blob_std140(env, argv[0], &ubo_blob, &ubo_size)) {
-        cleanup_partial_renderer(res);
-        enif_release_resource(res);
-        return enif_make_badarg(env);
+        for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
+            if (!create_gpu_buffer(&res->material_ubo[i],
+                                   (VkDeviceSize)ubo_size, ubo_usage,
+                                   ubo_mem)) {
+                cleanup_partial_renderer(res);
+                enif_release_resource(res);
+                return enif_make_badarg(env);
+            }
+
+            uint32_t slot = alloc_material_index();
+            if (slot == UINT32_MAX) {
+                cleanup_partial_renderer(res);
+                enif_release_resource(res);
+                return enif_make_badarg(env);
+            }
+
+            res->material_index[i] = slot;
+
+            VkDescriptorBufferInfo bi = {
+                .buffer = res->material_ubo[i].buffer,
+                .offset = 0,
+                .range = (VkDeviceSize)ubo_size,
+            };
+
+            VkWriteDescriptorSet w = {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = g_device.descriptor_set,
+                .dstBinding = UNIFORM_BINDING,
+                .dstArrayElement = slot,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .pBufferInfo = &bi,
+            };
+
+            vkUpdateDescriptorSets(g_device.logical_device, 1, &w, 0, NULL);
+        }
     }
-
-    const VkBufferUsageFlags ubo_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    const VkMemoryPropertyFlags ubo_mem = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-
-    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        if (!create_gpu_buffer(&res->material_ubo[i], (VkDeviceSize)ubo_size,
-                               ubo_usage, ubo_mem)) {
-            enif_free(ubo_blob);
-            cleanup_partial_renderer(res);
-            enif_release_resource(res);
-            return enif_make_badarg(env);
-        }
-
-        if (!direct_write_gpu_buffer(&res->material_ubo[i], ubo_blob,
-                                     (VkDeviceSize)ubo_size, 0)) {
-            enif_free(ubo_blob);
-            cleanup_partial_renderer(res);
-            enif_release_resource(res);
-            return enif_make_badarg(env);
-        }
-
-        uint32_t slot = alloc_material_index();
-        if (slot == UINT32_MAX) {
-            enif_free(ubo_blob);
-            cleanup_partial_renderer(res);
-            enif_release_resource(res);
-            return enif_make_badarg(env);
-        }
-
-        res->material_index[i] = slot;
-
-        VkDescriptorBufferInfo bi = {
-            .buffer = res->material_ubo[i].buffer,
-            .offset = 0,
-            .range = (VkDeviceSize)ubo_size,
-        };
-
-        VkWriteDescriptorSet w = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = g_device.descriptor_set,
-            .dstBinding = UNIFORM_BINDING,
-            .dstArrayElement = slot,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .pBufferInfo = &bi,
-        };
-
-        vkUpdateDescriptorSets(g_device.logical_device, 1, &w, 0, NULL);
-    }
-
-    enif_free(ubo_blob);
-    ubo_blob = NULL;
 
     ERL_NIF_TERM handle_term = enif_make_resource(env, res);
+
     enif_release_resource(res);
 
-    return enif_make_tuple3(env, argv[1], argv[2], handle_term);
+    return handle_term;
 }
 
 uint32_t get_material_index_for_frame(const renderer_res_t* r, uint32_t frame) {
@@ -560,26 +372,175 @@ uint32_t get_material_index_for_frame(const renderer_res_t* r, uint32_t frame) {
     return r->material_index[frame];
 }
 
+static size_t align_up(size_t x, size_t a) { return (x + (a - 1)) & ~(a - 1); }
+
+static int get_bool_term(ErlNifEnv* env, ERL_NIF_TERM t, uint32_t* out01) {
+    ERL_NIF_TERM a_true = enif_make_atom(env, "true");
+    ERL_NIF_TERM a_false = enif_make_atom(env, "false");
+    if (enif_is_identical(t, a_true)) {
+        *out01 = 1;
+        return 1;
+    }
+    if (enif_is_identical(t, a_false)) {
+        *out01 = 0;
+        return 1;
+    }
+    return 0;
+}
+
+static int get_f32_term(ErlNifEnv* env, ERL_NIF_TERM t, float* out) {
+    double d = 0.0;
+    if (!enif_get_double(env, t, &d)) return 0;
+    *out = (float)d;
+    return 1;
+}
+
+static int write_bytes(uint8_t* dst, size_t cap, size_t off, const void* src,
+                       size_t n) {
+    if (off + n > cap) return 0;
+    memcpy(dst + off, src, n);
+    return 1;
+}
+
+static int write_zeros(uint8_t* dst, size_t cap, size_t off, size_t n) {
+    if (off + n > cap) return 0;
+    memset(dst + off, 0, n);
+    return 1;
+}
+
+static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
+                            size_t blob_size, size_t* off) {
+    uint32_t b01 = 0;
+    if (get_bool_term(env, t, &b01)) {
+        *off = align_up(*off, 4);
+        return write_bytes(blob, blob_size, *off, &b01, 4) ? (*off += 4, 1) : 0;
+    }
+
+    float f = 0.0f;
+    if (get_f32_term(env, t, &f)) {
+        *off = align_up(*off, 4);
+        return write_bytes(blob, blob_size, *off, &f, 4) ? (*off += 4, 1) : 0;
+    }
+
+    const ERL_NIF_TERM* elems = NULL;
+    int arity = 0;
+    if (!enif_get_tuple(env, t, &arity, &elems)) return 0;
+
+    if (arity == 2) {
+        *off = align_up(*off, 8);
+        float v[2];
+        if (!get_f32_term(env, elems[0], &v[0])) return 0;
+        if (!get_f32_term(env, elems[1], &v[1])) return 0;
+        if (!write_bytes(blob, blob_size, *off, v, sizeof(v))) return 0;
+        *off += sizeof(v);
+        return 1;
+    }
+
+    if (arity == 3) {
+        *off = align_up(*off, 16);
+        float v3[3];
+        if (!get_f32_term(env, elems[0], &v3[0])) return 0;
+        if (!get_f32_term(env, elems[1], &v3[1])) return 0;
+        if (!get_f32_term(env, elems[2], &v3[2])) return 0;
+
+        if (!write_bytes(blob, blob_size, *off, v3, 12)) return 0;
+        if (!write_zeros(blob, blob_size, *off + 12, 4)) return 0;
+        *off += 16;
+        return 1;
+    }
+
+    if (arity == 9) {
+        *off = align_up(*off, 16);
+
+        float m[9];
+        for (int i = 0; i < 9; i++) {
+            if (!get_f32_term(env, elems[i], &m[i])) return 0;
+        }
+
+        for (int col = 0; col < 3; col++) {
+            *off = align_up(*off, 16);
+            float colv[3] = {
+                m[col * 3 + 0],
+                m[col * 3 + 1],
+                m[col * 3 + 2],
+            };
+            if (!write_bytes(blob, blob_size, *off, colv, 12)) return 0;
+            if (!write_zeros(blob, blob_size, *off + 12, 4)) return 0;
+            *off += 16;
+        }
+        return 1;
+    }
+
+    if (arity == 16) {
+        *off = align_up(*off, 16);
+
+        float m[16];
+        for (int i = 0; i < 16; i++) {
+            if (!get_f32_term(env, elems[i], &m[i])) return 0;
+        }
+
+        for (int col = 0; col < 4; col++) {
+            *off = align_up(*off, 16);
+            float colv[4] = {
+                m[col * 4 + 0],
+                m[col * 4 + 1],
+                m[col * 4 + 2],
+                m[col * 4 + 3],
+            };
+            if (!write_bytes(blob, blob_size, *off, colv, 16)) return 0;
+            *off += 16;
+        }
+        return 1;
+    }
+
+    return 0;
+}
+
+static int pack_std140_params_tuple(ErlNifEnv* env, ERL_NIF_TERM params_tuple,
+                                    uint8_t* blob, size_t blob_size) {
+    const ERL_NIF_TERM* elems = NULL;
+    int arity = 0;
+    if (!enif_get_tuple(env, params_tuple, &arity, &elems)) return 0;
+
+    size_t off = 0;
+    memset(blob, 0, blob_size);
+
+    for (int i = 0; i < arity; i++) {
+        if (!pack_std140_term(env, elems[i], blob, blob_size, &off)) return 0;
+    }
+
+    if (off > blob_size) return 0;
+
+    return 1;
+}
+
 void update_material_for_frame(ErlNifEnv* env, const renderer_res_t* r,
                                uint32_t frame, ERL_NIF_TERM params) {
     if (!env || !r) return;
     if (frame >= FRAMES_IN_FLIGHT) return;
 
-    uint8_t* ubo_blob = NULL;
-    size_t ubo_size = 0;
+    GpuBuffer* buf = (GpuBuffer*)&r->material_ubo[frame];
+    if (!buf || !buf->buffer || buf->size == 0) return;
 
-    if (!build_material_ubo_blob_std140(env, params, &ubo_blob, &ubo_size)) {
-        enif_fprintf(stderr, "renderer: failed to decode material params\n");
+    const size_t ubo_size = (size_t)buf->size;
+
+    uint8_t* ubo_blob = (uint8_t*)enif_alloc(ubo_size);
+    if (!ubo_blob) return;
+
+    if (!pack_std140_params_tuple(env, params, ubo_blob, ubo_size)) {
+        enif_fprintf(stderr,
+                     "renderer: std140 pack failed or size mismatch "
+                     "(frame=%u, ubo_size=%llu)\n",
+                     (unsigned)frame, (unsigned long long)ubo_size);
+        enif_free(ubo_blob);
         return;
     }
 
-    GpuBuffer* buf = (GpuBuffer*)&r->material_ubo[frame];
-
     if (!direct_write_gpu_buffer(buf, ubo_blob, (VkDeviceSize)ubo_size, 0)) {
-        enif_fprintf(
-            stderr,
-            "renderer: direct_write_gpu_buffer failed (frame=%u, size=%zu)\n",
-            (unsigned)frame, ubo_size);
+        enif_fprintf(stderr,
+                     "renderer: direct_write_gpu_buffer failed "
+                     "(frame=%u, size=%zu)\n",
+                     (unsigned)frame, ubo_size);
         enif_free(ubo_blob);
         return;
     }

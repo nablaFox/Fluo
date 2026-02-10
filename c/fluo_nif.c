@@ -46,7 +46,7 @@ static ErlNifFunc nif_funcs[] = {
     {"create_window", 3, nif_create_window},
     {"window_should_close", 1, nif_window_should_close},
     {"create_mesh", 2, nif_create_mesh},
-    {"create_renderer", 3, nif_create_renderer},
+    {"create_renderer", 2, nif_create_renderer},
     {"start_rendering", 0, nif_start_rendering},
     {"draw_mesh", 5, nif_draw_mesh},
     {"end_rendering", 0, nif_end_rendering},

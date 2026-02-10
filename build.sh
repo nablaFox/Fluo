@@ -8,6 +8,7 @@ g++ \
   -DDEBUG \
   -I/usr/lib/erlang/usr/include \
   -shared \
+  -x c spirv_reflect.c \
   -x c image.c \
   -x c rendering.c \
   -x c utils.c \
