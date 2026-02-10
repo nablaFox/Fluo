@@ -9,10 +9,6 @@ int is_tag(ErlNifEnv* env, ERL_NIF_TERM term, const char* a, const char* b);
 
 int decode_f32(ErlNifEnv* env, ERL_NIF_TERM t, float* out);
 
-int decode_vec3(ErlNifEnv* env, ERL_NIF_TERM t, float* x, float* y, float* z);
-
-int decode_color(ErlNifEnv* env, ERL_NIF_TERM t, float* r, float* g, float* b);
-
 static inline ERL_NIF_TERM raise_vk_error(ErlNifEnv* env, const char* expr, VkResult result) {
     ERL_NIF_TERM exc = enif_make_tuple3(env, enif_make_atom(env, "vulkan_error"), enif_make_atom(env, expr),
                                         enif_make_int(env, (int)result));

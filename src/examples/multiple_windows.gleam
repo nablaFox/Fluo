@@ -1,6 +1,7 @@
-import color
+import color.{red}
+import examples/triangle
 import gleam/option.{None, Some}
-import mesh.{Vec3, Vertex, create_mesh}
+import mesh
 import render.{create_renderer}
 import window.{create_window}
 
@@ -8,15 +9,7 @@ pub fn main() {
   let window1 = create_window("Fluo Window 1", width: 800, height: 600)
   let window2 = create_window("Fluo Window 2", width: 600, height: 800)
 
-  let mesh =
-    create_mesh(
-      [
-        Vertex(Vec3(0.0, -0.5, 0.0), color.red),
-        Vertex(Vec3(-0.5, 0.5, 0.0), color.green),
-        Vertex(Vec3(0.5, 0.5, 0.0), color.blue),
-      ],
-      [0, 1, 2],
-    )
+  let mesh = triangle.create_triagle()
 
   let renderer = create_renderer(vert: "vert.spv", frag: "frag.spv")
 
@@ -37,7 +30,13 @@ fn game_loop(
 
       let color = window.color(window1)
 
-      render.draw(renderer, mesh, #(alpha), Some(color), None)
+      render.draw(
+        renderer,
+        mesh,
+        #(red.r, red.g, red.b, alpha),
+        Some(color),
+        None,
+      )
 
       render.end_rendering()
 

@@ -6,8 +6,12 @@
 #include "buffer.h"
 
 typedef struct {
-    float px, py, pz;
-    float cr, cg, cb;
+    float pos[3];
+    float _pad0;
+    float normal[3];
+    float _pad1;
+    float uv[2];
+    float _pad2[2];
 } VertexGPU;
 
 typedef struct {

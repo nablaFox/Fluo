@@ -474,18 +474,25 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
             .location = 0,
             .binding = 0,
             .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(VertexGPU, px),
+            .offset = offsetof(VertexGPU, pos),
         },
         {
             .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
             .location = 1,
             .binding = 0,
             .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(VertexGPU, cr),
+            .offset = offsetof(VertexGPU, normal),
+        },
+        {
+            .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
+            .location = 2,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = offsetof(VertexGPU, uv),
         },
     };
 
-    vkCmdSetVertexInputEXT_(cmd, 1, &binding, 2, attributes);
+    vkCmdSetVertexInputEXT_(cmd, 1, &binding, 3, attributes);
 
     VkDeviceSize offset_indices = 0;
 

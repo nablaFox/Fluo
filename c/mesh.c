@@ -25,15 +25,52 @@ int nif_init_mesh_res(ErlNifEnv* env) {
     return MESH_RES_TYPE ? 0 : -1;
 }
 
+static int decode_vec3(ErlNifEnv* env, ERL_NIF_TERM t, float* x, float* y,
+                       float* z) {
+    const ERL_NIF_TERM* e;
+    int arity = 0;
+    if (!enif_get_tuple(env, t, &arity, &e)) return 0;
+    if (arity != 4) return 0;
+    if (!is_tag(env, e[0], "vec3", "Vec3")) return 0;
+
+    return decode_f32(env, e[1], x) && decode_f32(env, e[2], y) &&
+           decode_f32(env, e[3], z);
+}
+
+static int decode_vec2(ErlNifEnv* env, ERL_NIF_TERM t, float* x, float* y) {
+    const ERL_NIF_TERM* e = NULL;
+    int arity = 0;
+    if (!enif_get_tuple(env, t, &arity, &e)) return 0;
+
+    if (arity != 3) return 0;
+    if (!is_tag(env, e[0], "vec2", "Vec2")) return 0;
+
+    double dx = 0.0, dy = 0.0;
+    if (!enif_get_double(env, e[1], &dx)) return 0;
+    if (!enif_get_double(env, e[2], &dy)) return 0;
+
+    *x = (float)dx;
+    *y = (float)dy;
+    return 1;
+}
+
 static int decode_vertex(ErlNifEnv* env, ERL_NIF_TERM t, VertexGPU* out) {
     const ERL_NIF_TERM* e;
     int arity = 0;
     if (!enif_get_tuple(env, t, &arity, &e)) return 0;
-    if (arity != 3) return 0;
+
+    if (arity != 4) return 0;
     if (!is_tag(env, e[0], "vertex", "Vertex")) return 0;
 
-    if (!decode_vec3(env, e[1], &out->px, &out->py, &out->pz)) return 0;
-    if (!decode_color(env, e[2], &out->cr, &out->cg, &out->cb)) return 0;
+    if (!decode_vec3(env, e[1], &out->pos[0], &out->pos[1], &out->pos[2]))
+        return 0;
+
+    if (!decode_vec3(env, e[2], &out->normal[0], &out->normal[1],
+                     &out->normal[2]))
+        return 0;
+
+    if (!decode_vec2(env, e[3], &out->uv[0], &out->uv[1])) return 0;
+
     return 1;
 }
 

@@ -1,13 +1,16 @@
-import color.{type Color}
 import gleam/dynamic.{type Dynamic}
 import gleam/list
+
+pub type Vec2 {
+  Vec2(x: Float, y: Float)
+}
 
 pub type Vec3 {
   Vec3(x: Float, y: Float, z: Float)
 }
 
 pub type Vertex {
-  Vertex(position: Vec3, color: Color)
+  Vertex(position: Vec3, normal: Vec3, uv: Vec2)
 }
 
 pub opaque type Mesh {

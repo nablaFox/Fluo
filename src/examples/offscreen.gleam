@@ -1,16 +1,16 @@
-import color
+import color.{red}
 import gleam/option.{None, Some}
 import image
-import mesh.{Vec3, Vertex, create_mesh}
+import mesh.{Vec2, Vec3, Vertex}
 import render
 
 pub fn main() {
   let mesh =
-    create_mesh(
+    mesh.create_mesh(
       [
-        Vertex(Vec3(0.0, -0.5, 0.0), color.red),
-        Vertex(Vec3(-0.5, 0.5, 0.0), color.green),
-        Vertex(Vec3(0.5, 0.5, 0.0), color.blue),
+        Vertex(Vec3(0.0, -0.5, 0.0), Vec3(1.0, 0.0, 0.0), Vec2(0.0, 0.0)),
+        Vertex(Vec3(-0.5, 0.5, 0.0), Vec3(0.0, 1.0, 0.0), Vec2(0.0, 1.0)),
+        Vertex(Vec3(0.5, 0.5, 0.0), Vec3(0.0, 0.0, 1.0), Vec2(1.0, 1.0)),
       ],
       [0, 1, 2],
     )
@@ -21,7 +21,7 @@ pub fn main() {
 
   render.start_rendering()
 
-  render.draw(renderer, mesh, #(1.0), Some(color), None)
+  render.draw(renderer, mesh, #(red.r, red.g, red.b, 1.0), Some(color), None)
 
   render.end_rendering()
 
