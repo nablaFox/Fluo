@@ -10,14 +10,14 @@ pub fn main() {
 
   let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 
-  window.loop(window, 0.0, fn(ctx, alpha) {
-    ctx.draw(renderer, triangle, #(red.r, red.g, red.b, alpha))
+  use ctx, alpha <- window.loop(window, 0.0)
 
-    let alpha = case ctx.keys_down {
-      [window.LShift, window.KeyA] -> alpha +. 0.001
-      _ -> alpha
-    }
+  ctx.draw(renderer, triangle, #(red.r, red.g, red.b, alpha))
 
-    alpha
-  })
+  let alpha = case ctx.keys_down {
+    [window.Space] -> alpha +. ctx.delta
+    _ -> alpha
+  }
+
+  alpha
 }

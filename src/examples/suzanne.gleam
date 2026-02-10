@@ -12,7 +12,7 @@ pub fn main() {
 
   let renderer = render.create_renderer(vert: "vert.spv", frag: "texture.spv")
 
-  window.loop(window, Nil, fn(ctx, _) {
-    ctx.draw(renderer, suzanne, #(texture))
-  })
+  use ctx, _ <- window.loop(window, Nil)
+
+  ctx.draw(renderer, suzanne, #(texture))
 }

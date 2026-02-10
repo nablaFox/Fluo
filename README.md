@@ -8,22 +8,26 @@ Currently under development.
 #### Gleam cpu code
 
 ```gleam
-import mesh
+import color.{red}
+import examples/utils
 import render
 import window
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let mesh = mesh.load_obj("assets/triangle.obj")
+  let triangle = utils.create_triagle()
 
   let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 
   use ctx, alpha <- window.loop(window, 0.0)
 
-  let alpha = alpha +. ctx.delta
+  ctx.draw(renderer, triangle, #(red.r, red.g, red.b, alpha))
 
-  ctx.draw(renderer, mesh, #(alpha))
+  let alpha = case ctx.keys_down {
+    [window.Space] -> alpha +. ctx.delta
+    _ -> alpha
+  }
 
   alpha
 }
@@ -34,14 +38,15 @@ pub fn main() {
 ```glsl
 #version 450
 
-layout(location = 0) in vec2 in_position;
-layout(location = 1) in vec3 in_color;
+#define VERTEX_SHADER
+#include "fluo.glsl"
 
-layout(location = 0) out vec3 frag_color;
+layout(location = 0) out vec2 frag_uv;
 
 void main() {
-    gl_Position = vec4(in_position, 0.0, 1.0);
-    frag_color = in_color;
+    gl_Position = model * vec4(in_position, 1.0);
+
+    frag_uv = in_uv;
 }
 ```
 
@@ -50,16 +55,15 @@ void main() {
 ```glsl
 #version 450
 
-layout(location = 0) in vec3 frag_color;
-layout(location = 0) out vec4 out_color;
-
 #include "fluo.glsl"
 
+layout(location = 0) out vec4 out_color;
+
 DEF_MATERIAL({
-    float alpha;
+    vec4 color;
 });
 
 void main() {
-    out_color = vec4(frag_color * MATERIAL.alpha, MATERIAL.alpha);
+    out_color = vec4(MATERIAL.color.xyz * MATERIAL.color.w, 1.0);
 }
 ```
