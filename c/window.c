@@ -428,6 +428,10 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
 
     res->handle = glfwCreateWindow(width, height, title, NULL, NULL);
 
+    res->has_last_mouse = 0;
+    res->last_mouse_x = 0.0;
+    res->last_mouse_y = 0.0;
+
     free(title);
 
     if (!res->handle) {
@@ -471,6 +475,140 @@ ERL_NIF_TERM nif_window_should_close(ErlNifEnv* env, int argc,
 
     return should_close ? enif_make_atom(env, "true")
                         : enif_make_atom(env, "false");
+}
+
+ERL_NIF_TERM nif_window_poll_events(ErlNifEnv* env, int argc,
+                                    const ERL_NIF_TERM argv[]) {
+    if (argc != 1) return enif_make_badarg(env);
+
+    window_res_t* res = get_window_from_term(env, argv[0]);
+
+    if (!res) return enif_make_badarg(env);
+
+    glfwPollEvents();
+
+    return enif_make_atom(env, "ok");
+}
+
+ERL_NIF_TERM nif_window_keys_down(ErlNifEnv* env, int argc,
+                                  const ERL_NIF_TERM argv[]) {
+    if (argc != 1) return enif_make_badarg(env);
+
+    window_res_t* w = get_window_from_term(env, argv[0]);
+    if (!w || !w->handle) return enif_make_badarg(env);
+
+    typedef struct {
+        int glfw_key;
+        const char* atom;
+    } KeySpec;
+
+    static const KeySpec ORDER[] = {
+        {GLFW_KEY_ENTER, "enter"},
+        {GLFW_KEY_SPACE, "space"},
+        {GLFW_KEY_BACKSPACE, "backspace"},
+        {GLFW_KEY_TAB, "tab"},
+
+        {GLFW_KEY_LEFT_SHIFT, "l_shift"},
+        {GLFW_KEY_RIGHT_SHIFT, "r_shift"},
+        {GLFW_KEY_LEFT_ALT, "l_alt"},
+        {GLFW_KEY_RIGHT_ALT, "r_alt"},
+        {GLFW_KEY_LEFT_CONTROL, "l_ctrl"},
+        {GLFW_KEY_RIGHT_CONTROL, "r_ctrl"},
+
+        {GLFW_KEY_A, "key_a"},
+        {GLFW_KEY_B, "key_b"},
+        {GLFW_KEY_C, "key_c"},
+        {GLFW_KEY_D, "key_d"},
+        {GLFW_KEY_E, "key_e"},
+        {GLFW_KEY_F, "key_f"},
+        {GLFW_KEY_G, "key_g"},
+        {GLFW_KEY_H, "key_h"},
+        {GLFW_KEY_I, "key_i"},
+        {GLFW_KEY_J, "key_j"},
+        {GLFW_KEY_K, "key_k"},
+        {GLFW_KEY_L, "key_l"},
+        {GLFW_KEY_M, "key_m"},
+        {GLFW_KEY_N, "key_n"},
+        {GLFW_KEY_O, "key_o"},
+        {GLFW_KEY_P, "key_p"},
+        {GLFW_KEY_Q, "key_q"},
+        {GLFW_KEY_R, "key_r"},
+        {GLFW_KEY_S, "key_s"},
+        {GLFW_KEY_T, "key_t"},
+        {GLFW_KEY_U, "key_u"},
+        {GLFW_KEY_V, "key_v"},
+        {GLFW_KEY_W, "key_w"},
+        {GLFW_KEY_X, "key_x"},
+        {GLFW_KEY_Y, "key_y"},
+        {GLFW_KEY_Z, "key_z"},
+
+        {GLFW_KEY_UP, "arrow_up"},
+        {GLFW_KEY_DOWN, "arrow_down"},
+        {GLFW_KEY_LEFT, "arrow_left"},
+        {GLFW_KEY_RIGHT, "arrow_right"},
+    };
+
+    ERL_NIF_TERM list = enif_make_list(env, 0);
+
+    for (int i = (int)(sizeof(ORDER) / sizeof(ORDER[0])) - 1; i >= 0; --i) {
+        if (glfwGetKey(w->handle, ORDER[i].glfw_key) == GLFW_PRESS) {
+            list = enif_make_list_cell(env, enif_make_atom(env, ORDER[i].atom),
+                                       list);
+        }
+    }
+
+    return list;
+}
+
+ERL_NIF_TERM nif_window_mouse_pos(ErlNifEnv* env, int argc,
+                                  const ERL_NIF_TERM argv[]) {
+    if (argc != 1) return enif_make_badarg(env);
+
+    window_res_t* w = get_window_from_term(env, argv[0]);
+    if (!w || !w->handle) return enif_make_badarg(env);
+
+    double x = 0.0, y = 0.0;
+    glfwGetCursorPos(w->handle, &x, &y);
+
+    ERL_NIF_TERM pos_tuple =
+        enif_make_tuple3(env, enif_make_atom(env, "mouse_pos"),
+                         enif_make_double(env, x), enif_make_double(env, y));
+
+    return pos_tuple;
+}
+
+ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc,
+                                    const ERL_NIF_TERM argv[]) {
+    if (argc != 1) return enif_make_badarg(env);
+
+    window_res_t* w = get_window_from_term(env, argv[0]);
+    if (!w || !w->handle) return enif_make_badarg(env);
+
+    double x = 0.0, y = 0.0;
+    glfwGetCursorPos(w->handle, &x, &y);
+
+    float fx = (float)x;
+    float fy = (float)y;
+
+    if (!w->has_last_mouse) {
+        w->last_mouse_x = fx;
+        w->last_mouse_y = fy;
+        w->has_last_mouse = 1;
+
+        return enif_make_tuple3(env, enif_make_atom(env, "mouse_delta"),
+                                enif_make_double(env, 0.0),
+                                enif_make_double(env, 0.0));
+    }
+
+    float dx = fx - w->last_mouse_x;
+    float dy = fy - w->last_mouse_y;
+
+    w->last_mouse_x = fx;
+    w->last_mouse_y = fy;
+
+    return enif_make_tuple3(env, enif_make_atom(env, "mouse_delta"),
+                            enif_make_double(env, dx),
+                            enif_make_double(env, dy));
 }
 
 window_res_t* get_window_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {

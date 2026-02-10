@@ -6,10 +6,6 @@ import image.{
 import mesh.{type Mesh}
 import render.{type Renderer, draw, end_rendering, start_rendering}
 
-pub type Event {
-  None
-}
-
 pub opaque type Window {
   Window(
     width: Int,
@@ -21,8 +17,73 @@ pub opaque type Window {
   )
 }
 
+pub type Key {
+  KeyA
+  KeyB
+  KeyC
+  KeyD
+  KeyE
+  KeyF
+  KeyG
+  KeyH
+  KeyI
+  KeyJ
+  KeyK
+  KeyL
+  KeyM
+  KeyN
+  KeyO
+  KeyP
+  KeyQ
+  KeyR
+  KeyS
+  KeyT
+  KeyU
+  KeyV
+  KeyW
+  KeyX
+  KeyY
+  KeyZ
+  ArrowUp
+  ArrowDown
+  ArrowLeft
+  ArrowRight
+  Enter
+  Space
+  Backspace
+  Tab
+  LShift
+  RShift
+  LCtrl
+  RCtrl
+  LAlt
+  RAlt
+}
+
+pub type Position {
+  Position(x: Float, y: Float)
+}
+
 @external(erlang, "fluo_nif", "create_window")
 fn create_window_raw(title: String, width: Int, height: Int) -> Dynamic
+
+@external(erlang, "fluo_nif", "window_should_close")
+pub fn window_should_close(window: Window) -> Bool
+
+@external(erlang, "fluo_nif", "window_poll_events")
+pub fn poll_events(window: Window) -> Nil
+
+@external(erlang, "fluo_nif", "window_keys_down")
+pub fn keys_down(window: Window) -> List(Key)
+
+@external(erlang, "fluo_nif", "window_mouse_pos")
+pub fn mouse_position(window: Window) -> Position
+
+@external(erlang, "fluo_nif", "window_mouse_delta")
+pub fn mouse_delta(window: Window) -> Position
+
+@external(erlang, "fluo_nif", "swap_buffers")
+pub fn swap(window: Window, color: ColorImage) -> Nil
 
 pub fn create_window(
   title: String,
@@ -36,15 +97,9 @@ pub fn create_window(
   Window(width, height, title, color, depth, handle)
 }
 
-@external(erlang, "fluo_nif", "swap_buffers")
-pub fn swap(window: Window, color: ColorImage) -> Nil
-
 pub fn present(window: Window) -> Nil {
   swap(window, window.color)
 }
-
-@external(erlang, "fluo_nif", "window_should_close")
-pub fn window_should_close(window: Window) -> Bool
 
 pub fn width(window: Window) -> Int {
   window.width
@@ -66,15 +121,32 @@ pub fn depth(window: Window) -> DepthImage {
   window.depth
 }
 
+pub type Context(params) {
+  Context(
+    draw: fn(Renderer, Mesh, params) -> Nil,
+    delta: Float,
+    keys_down: List(Key),
+    mouse_pos: Position,
+    mouse_delta: Position,
+    width: Int,
+    height: Int,
+    color: ColorImage,
+    depth: DepthImage,
+    title: String,
+  )
+}
+
 pub fn loop(
   window: Window,
   state: state,
-  callback: fn(Event, fn(Renderer, Mesh, params) -> Nil, Float, state) -> state,
+  callback: fn(Context(params), state) -> state,
 ) {
   case window_should_close(window) {
     True -> Nil
     False -> {
       start_rendering()
+
+      poll_events(window)
 
       let delta = 0.016
 
@@ -85,13 +157,33 @@ pub fn loop(
         draw(renderer, mesh, params, color, depth)
       }
 
-      let new_state = callback(None, draw, delta, state)
+      let keys_down = keys_down(window)
+
+      let mouse_pos = mouse_position(window)
+
+      let mouse_delta = mouse_delta(window)
+
+      let ctx =
+        Context(
+          draw,
+          delta,
+          keys_down,
+          mouse_pos,
+          mouse_delta,
+          window.width,
+          window.height,
+          window.color,
+          window.depth,
+          window.title,
+        )
+
+      let state = callback(ctx, state)
 
       end_rendering()
 
       present(window)
 
-      loop(window, new_state, callback)
+      loop(window, state, callback)
     }
   }
 }

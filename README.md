@@ -19,10 +19,10 @@ pub fn main() {
 
   let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 
-  window.loop(window, 0.0, fn(_, draw, delta, alpha) {
-    let alpha = alpha +. delta
+  window.loop(window, 0.0, fn(ctx, alpha) {
+    let alpha = alpha +. ctx.delta
 
-    draw(renderer, mesh, #(alpha))
+    ctx.draw(renderer, mesh, #(alpha))
 
     alpha
   })

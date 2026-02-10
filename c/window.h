@@ -21,6 +21,10 @@ typedef struct {
     VkCommandPool blit_cmd_pool;
     VkCommandBuffer* blit_cmds;
     VkFence* blit_fences;
+
+    float last_mouse_x;
+    float last_mouse_y;
+    int has_last_mouse;
 } window_res_t;
 
 int nif_init_window_res(ErlNifEnv* env);
@@ -28,6 +32,14 @@ int nif_init_window_res(ErlNifEnv* env);
 ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM nif_window_should_close(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM nif_window_poll_events(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM nif_window_keys_down(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM nif_window_mouse_pos(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 window_res_t* get_window_from_term(ErlNifEnv* env, ERL_NIF_TERM term);
 
