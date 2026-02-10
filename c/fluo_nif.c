@@ -58,6 +58,7 @@ static ErlNifFunc nif_funcs[] = {
     {"create_depth_image", 2, nif_create_depth_image},
     {"create_color_image", 2, nif_create_color_image},
     {"read_image", 1, nif_read_image},
+    {"window_delta_time", 1, nif_window_delta_time},
 };
 
 ERL_NIF_INIT(fluo_nif, nif_funcs, load, NULL, NULL, unload)

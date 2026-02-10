@@ -85,6 +85,9 @@ pub fn mouse_delta(window: Window) -> Position
 @external(erlang, "fluo_nif", "swap_buffers")
 pub fn swap(window: Window, color: ColorImage) -> Nil
 
+@external(erlang, "fluo_nif", "window_delta_time")
+pub fn delta(window: Window) -> Float
+
 pub fn create_window(
   title: String,
   width width: Int,
@@ -148,7 +151,13 @@ pub fn loop(
 
       poll_events(window)
 
-      let delta = 0.016
+      let delta = delta(window)
+
+      let keys_down = keys_down(window)
+
+      let mouse_pos = mouse_position(window)
+
+      let mouse_delta = mouse_delta(window)
 
       let draw = fn(renderer, mesh, params) {
         let color = Some(window.color)
@@ -156,12 +165,6 @@ pub fn loop(
 
         draw(renderer, mesh, params, color, depth)
       }
-
-      let keys_down = keys_down(window)
-
-      let mouse_pos = mouse_position(window)
-
-      let mouse_delta = mouse_delta(window)
 
       let ctx =
         Context(

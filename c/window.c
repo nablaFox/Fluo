@@ -431,6 +431,8 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
     res->has_last_mouse = 0;
     res->last_mouse_x = 0.0;
     res->last_mouse_y = 0.0;
+    res->last_time = 0.0;
+    res->has_last_time = 0;
 
     free(title);
 
@@ -587,12 +589,9 @@ ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc,
     double x = 0.0, y = 0.0;
     glfwGetCursorPos(w->handle, &x, &y);
 
-    float fx = (float)x;
-    float fy = (float)y;
-
     if (!w->has_last_mouse) {
-        w->last_mouse_x = fx;
-        w->last_mouse_y = fy;
+        w->last_mouse_x = x;
+        w->last_mouse_y = y;
         w->has_last_mouse = 1;
 
         return enif_make_tuple3(env, enif_make_atom(env, "mouse_delta"),
@@ -600,15 +599,39 @@ ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc,
                                 enif_make_double(env, 0.0));
     }
 
-    float dx = fx - w->last_mouse_x;
-    float dy = fy - w->last_mouse_y;
+    float dx = x - w->last_mouse_x;
+    float dy = y - w->last_mouse_y;
 
-    w->last_mouse_x = fx;
-    w->last_mouse_y = fy;
+    w->last_mouse_x = x;
+    w->last_mouse_y = y;
 
     return enif_make_tuple3(env, enif_make_atom(env, "mouse_delta"),
                             enif_make_double(env, dx),
                             enif_make_double(env, dy));
+}
+
+ERL_NIF_TERM nif_window_delta_time(ErlNifEnv* env, int argc,
+                                   const ERL_NIF_TERM argv[]) {
+    if (argc != 1) return enif_make_badarg(env);
+
+    window_res_t* w = get_window_from_term(env, argv[0]);
+    if (!w || !w->handle) return enif_make_badarg(env);
+
+    double now = glfwGetTime();
+
+    if (!w->has_last_time) {
+        w->has_last_time = 1;
+        w->last_time = now;
+        return enif_make_double(env, 0.0);
+    }
+
+    double dt = now - w->last_time;
+    w->last_time = now;
+
+    if (dt < 0.0) dt = 0.0;
+    if (dt > 0.1) dt = 0.1;
+
+    return enif_make_double(env, dt);
 }
 
 window_res_t* get_window_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
