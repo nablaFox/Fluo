@@ -1,10 +1,10 @@
-import gleam/dynamic.{type Dynamic}
-import gleam/option.{Some}
-import image.{
+import fluo/image.{
   type ColorImage, type DepthImage, create_color_image, create_depth_image,
 }
-import mesh.{type Mesh}
-import render.{type Renderer, draw, end_rendering, start_rendering}
+import fluo/mesh.{type Mesh}
+import fluo/render.{type Renderer, draw, end_rendering, start_rendering}
+import gleam/dynamic.{type Dynamic}
+import gleam/option.{Some}
 
 pub opaque type Window {
   Window(

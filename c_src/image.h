@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <erl_nif.h>
+#include "erl_nif.h"
 
 #include "vk_mem_alloc.h"
 

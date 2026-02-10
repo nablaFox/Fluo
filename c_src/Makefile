@@ -1,0 +1,42 @@
+APP_PRIV_DIR := ../priv
+LIB_NAME := libfluo_nif
+SO := $(APP_PRIV_DIR)/$(LIB_NAME).so
+
+CXX := g++
+CXXFLAGS := -fPIC -Wall -O3
+LDFLAGS := -shared
+LDLIBS := -lvulkan -lglfw
+
+INCLUDES := -I./erl_nif -I./vendor
+
+C_SRCS := \
+  vendor/spirv_reflect.c \
+  texture.c \
+  image.c \
+  rendering.c \
+  utils.c \
+  renderer.c \
+  mesh.c \
+  buffer.c \
+  device.c \
+  window.c \
+  fluo_nif.c
+
+CPP_SRCS := \
+  mesh_obj.cpp \
+  vendor/vma_impl.cpp
+
+all: $(SO)
+
+$(SO): $(C_SRCS) $(CPP_SRCS)
+	mkdir -p $(APP_PRIV_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(LDFLAGS) \
+	  $(addprefix -x c ,$(C_SRCS)) \
+	  $(addprefix -x c++ ,$(CPP_SRCS)) \
+	  -o $@ \
+	  $(LDLIBS)
+
+clean:
+	rm -f $(SO)
+
+.PHONY: all clean

@@ -8,15 +8,15 @@ Currently under development.
 #### Gleam cpu code
 
 ```gleam
-import color.{red}
-import examples/utils
-import render
-import window
+import fluo/color.{red}
+import fluo/render
+import fluo/mesh
+import fluo/window
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let triangle = utils.create_triagle()
+  let triangle = mesh.load_mesh("triangle.obj")
 
   let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 
@@ -67,3 +67,5 @@ void main() {
     out_color = vec4(MATERIAL.color.xyz * MATERIAL.color.w, 1.0);
 }
 ```
+
+Checkout more examples in the [examples](./examples) folder.

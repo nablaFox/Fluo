@@ -1,12 +1,12 @@
-import color.{red}
-import examples/utils
-import render
-import window
+import fluo/color.{red}
+import fluo/mesh
+import fluo/render
+import fluo/window
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let triangle = utils.create_triagle()
+  let triangle = mesh.load_obj("assets/triangle.obj")
 
   let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 

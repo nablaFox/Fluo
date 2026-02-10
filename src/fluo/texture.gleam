@@ -1,5 +1,5 @@
+import fluo/image
 import gleam/dynamic.{type Dynamic}
-import image
 
 pub opaque type Texture {
   Texture(color: image.ColorImage, handle: Dynamic)

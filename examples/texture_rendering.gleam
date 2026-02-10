@@ -1,18 +1,27 @@
-import color.{red}
-import examples/utils
+import fluo/color.{red}
+import fluo/mesh.{Vec2, Vec3, Vertex}
+import fluo/render
+import fluo/texture
+import fluo/window
 import gleam/bit_array
 import gleam/list
 import gleam/option.{None, Some}
-import render
-import texture
-import window
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let triangle = utils.create_triagle()
+  let triangle = mesh.load_obj("assets/triangle.obj")
 
-  let quad = utils.create_quad()
+  let quad =
+    mesh.create_mesh(
+      [
+        Vertex(Vec3(-1.0, -1.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec2(0.0, 0.0)),
+        Vertex(Vec3(-1.0, 1.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec2(0.0, 1.0)),
+        Vertex(Vec3(1.0, 1.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec2(1.0, 1.0)),
+        Vertex(Vec3(1.0, -1.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec2(1.0, 0.0)),
+      ],
+      [0, 1, 2, 2, 3, 0],
+    )
 
   let texture = {
     let width = 512

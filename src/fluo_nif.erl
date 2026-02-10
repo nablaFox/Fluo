@@ -46,7 +46,15 @@
 
 -on_load(init/0).
 
-init() -> erlang:load_nif("priv/libfluo_nif", 0).
+init() ->
+    PrivDir =
+        case code:priv_dir(fluo_nif) of
+            {error, bad_name} ->
+                filename:join([filename:dirname(code:which(?MODULE)), "..", "priv"]);
+            Dir ->
+                Dir
+        end,
+    erlang:load_nif(filename:join(PrivDir, "libfluo_nif"), 0).
 
 create_window(_, _, _) -> erlang:nif_error(not_loaded).
 window_should_close(_) -> erlang:nif_error(not_loaded).

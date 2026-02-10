@@ -1,7 +1,7 @@
+import fluo/image.{type ColorImage, type DepthImage}
+import fluo/mesh.{type Mesh}
 import gleam/dynamic.{type Dynamic}
 import gleam/option.{type Option}
-import image.{type ColorImage, type DepthImage}
-import mesh.{type Mesh}
 
 pub opaque type Renderer {
   Renderer(frag_name: String, vert_name: String, handle: Dynamic)

@@ -1,11 +1,11 @@
-import color.{red}
-import examples/utils
+import fluo/color.{red}
+import fluo/image
+import fluo/mesh
+import fluo/render
 import gleam/option.{None, Some}
-import image
-import render
 
 pub fn main() {
-  let mesh = utils.create_triagle()
+  let triangle = mesh.load_obj("assets/triangle.obj")
 
   let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
 
@@ -13,7 +13,13 @@ pub fn main() {
 
   render.start_rendering()
 
-  render.draw(renderer, mesh, #(red.r, red.g, red.b, 1.0), Some(color), None)
+  render.draw(
+    renderer,
+    triangle,
+    #(red.r, red.g, red.b, 1.0),
+    Some(color),
+    None,
+  )
 
   render.end_rendering()
 

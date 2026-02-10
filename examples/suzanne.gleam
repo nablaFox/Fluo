@@ -1,7 +1,7 @@
-import mesh
-import render
-import texture
-import window
+import fluo/mesh
+import fluo/render
+import fluo/texture
+import fluo/window
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)

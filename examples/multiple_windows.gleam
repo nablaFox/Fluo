@@ -1,19 +1,18 @@
-import color.{red}
-import examples/utils
+import fluo/color.{red}
+import fluo/mesh
+import fluo/render.{create_renderer}
+import fluo/window.{create_window}
 import gleam/option.{None, Some}
-import mesh
-import render.{create_renderer}
-import window.{create_window}
 
 pub fn main() {
   let window1 = create_window("Fluo Window 1", width: 800, height: 600)
   let window2 = create_window("Fluo Window 2", width: 600, height: 800)
 
-  let mesh = utils.create_triagle()
+  let triangle = mesh.load_obj("assets/triangle.obj")
 
   let renderer = create_renderer(vert: "vert.spv", frag: "frag.spv")
 
-  game_loop(window1, window2, renderer, mesh, 0.0)
+  game_loop(window1, window2, renderer, triangle, 0.0)
 }
 
 fn game_loop(
