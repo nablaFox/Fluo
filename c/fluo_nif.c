@@ -66,6 +66,7 @@ static ErlNifFunc nif_funcs[] = {
     {"read_image", 1, nif_read_image},
     {"window_delta_time", 1, nif_window_delta_time},
     {"create_texture", 3, nif_create_texture},
+    {"load_texture_from_path", 1, nif_load_texture_from_path},
 };
 
 ERL_NIF_INIT(fluo_nif, nif_funcs, load, NULL, NULL, unload)

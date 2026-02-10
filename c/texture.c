@@ -4,6 +4,9 @@
 
 #include "device.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 static ErlNifResourceType* TEXTURE_RES_TYPE = NULL;
 
 static atomic_uint_fast32_t g_next_texture_index = 0;
@@ -114,66 +117,52 @@ static int create_default_sampler(VkSampler* out_sampler) {
     return 1;
 }
 
-ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
-                                const ERL_NIF_TERM argv[]) {
-    if (argc != 3) return enif_make_badarg(env);
-
-    ErlNifBinary bin = {0};
-    if (!enif_inspect_binary(env, argv[0], &bin)) return enif_make_badarg(env);
-
-    unsigned int width = 0, height = 0;
-    if (!enif_get_uint(env, argv[1], &width)) return enif_make_badarg(env);
-    if (!enif_get_uint(env, argv[2], &height)) return enif_make_badarg(env);
-    if (width == 0 || height == 0) return enif_make_badarg(env);
+texture_res_t* create_texture_from_pixels(ErlNifEnv* env, const uint8_t* pixels,
+                                          uint32_t width, uint32_t height) {
+    if (!pixels || width == 0 || height == 0) return NULL;
 
     const size_t expected = (size_t)width * (size_t)height * 4u;
-    if (bin.size != expected) {
-        enif_fprintf(stderr,
-                     "texture: bad pixel buffer size: got %zu, expected %zu "
-                     "(%ux%u RGBA8)\n",
-                     (size_t)bin.size, expected, width, height);
-        return enif_make_badarg(env);
-    }
 
     texture_res_t* tex = (texture_res_t*)enif_alloc_resource(
         TEXTURE_RES_TYPE, sizeof(texture_res_t));
-    if (!tex) return enif_make_atom(env, "error");
+
+    if (!tex) return NULL;
 
     *tex = (texture_res_t){0};
 
     image_res_t* img = alloc_image_res(env);
+
     if (!img) {
         enif_release_resource(tex);
-        return enif_make_atom(env, "error");
+        return NULL;
     }
 
     uint32_t slot = alloc_texture_index();
     if (slot == UINT32_MAX) {
         enif_release_resource(img);
         enif_release_resource(tex);
-        return enif_make_atom(env, "error");
+        return NULL;
     }
+
     tex->texture_index = slot;
 
     if (!create_default_sampler(&tex->sampler)) {
         enif_release_resource(img);
         enif_release_resource(tex);
-        return enif_make_atom(env, "error");
+        return NULL;
     }
 
     VkImageUsageFlags usage =
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
-    if (!create_image(img, (uint32_t)width, (uint32_t)height,
-                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                      VK_FORMAT_R8G8B8A8_UNORM, usage,
-                      VK_IMAGE_ASPECT_COLOR_BIT, 0)) {
+    if (!create_image(
+            img, width, height, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            VK_FORMAT_R8G8B8A8_UNORM, usage, VK_IMAGE_ASPECT_COLOR_BIT, 0)) {
         vkDestroySampler(g_device.logical_device, tex->sampler, NULL);
-        tex->sampler = VK_NULL_HANDLE;
         enif_release_resource(img);
         enif_release_resource(tex);
-        return enif_make_atom(env, "error");
+        return NULL;
     }
 
     VkBuffer staging_buf = VK_NULL_HANDLE;
@@ -194,10 +183,9 @@ ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
     if (vmaCreateBuffer(g_device.allocator, &buf_info, &alloc_info,
                         &staging_buf, &staging_alloc, NULL) != VK_SUCCESS) {
         vkDestroySampler(g_device.logical_device, tex->sampler, NULL);
-        tex->sampler = VK_NULL_HANDLE;
         enif_release_resource(img);
         enif_release_resource(tex);
-        return enif_make_atom(env, "error");
+        return NULL;
     }
 
     void* mapped = NULL;
@@ -206,13 +194,12 @@ ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
         !mapped) {
         vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
         vkDestroySampler(g_device.logical_device, tex->sampler, NULL);
-        tex->sampler = VK_NULL_HANDLE;
         enif_release_resource(img);
         enif_release_resource(tex);
-        return enif_make_atom(env, "error");
+        return NULL;
     }
 
-    memcpy(mapped, bin.data, expected);
+    memcpy(mapped, pixels, expected);
     vmaFlushAllocation(g_device.allocator, staging_alloc, 0,
                        (VkDeviceSize)expected);
     vmaUnmapMemory(g_device.allocator, staging_alloc);
@@ -233,7 +220,7 @@ ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
                 .layerCount = 1,
             },
         .imageOffset = {0, 0, 0},
-        .imageExtent = {(uint32_t)width, (uint32_t)height, 1},
+        .imageExtent = {width, height, 1},
     };
 
     vkCmdCopyBufferToImage(cmd, staging_buf, img->image,
@@ -244,10 +231,9 @@ ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
     if (!end_single_time_commands(cmd)) {
         vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
         vkDestroySampler(g_device.logical_device, tex->sampler, NULL);
-        tex->sampler = VK_NULL_HANDLE;
         enif_release_resource(img);
         enif_release_resource(tex);
-        return enif_make_atom(env, "error");
+        return NULL;
     }
 
     vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
@@ -273,10 +259,75 @@ ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
     tex->image = img;
     enif_keep_resource(img);
 
-    ERL_NIF_TERM img_term = enif_make_resource(env, img);
-    enif_release_resource(img);
+    return tex;
+}
 
+ERL_NIF_TERM nif_create_texture(ErlNifEnv* env, int argc,
+                                const ERL_NIF_TERM argv[]) {
+    if (argc != 3) return enif_make_badarg(env);
+
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin)) return enif_make_badarg(env);
+
+    unsigned int width = 0, height = 0;
+    if (!enif_get_uint(env, argv[1], &width)) return enif_make_badarg(env);
+    if (!enif_get_uint(env, argv[2], &height)) return enif_make_badarg(env);
+
+    const size_t expected = (size_t)width * (size_t)height * 4u;
+    if (bin.size != expected) return enif_make_badarg(env);
+
+    texture_res_t* tex =
+        create_texture_from_pixels(env, bin.data, width, height);
+
+    if (!tex) return enif_make_atom(env, "error");
+
+    image_res_t* img = tex->image;
+
+    ERL_NIF_TERM img_term = enif_make_resource(env, img);
     ERL_NIF_TERM tex_term = enif_make_resource(env, tex);
+
+    enif_release_resource(img);
+    enif_release_resource(tex);
+
+    return enif_make_tuple2(env, img_term, tex_term);
+}
+
+ERL_NIF_TERM nif_load_texture_from_path(ErlNifEnv* env, int argc,
+                                        const ERL_NIF_TERM argv[]) {
+    if (argc != 1) return enif_make_badarg(env);
+
+    ErlNifBinary bin;
+    if (!enif_inspect_binary(env, argv[0], &bin)) return enif_make_badarg(env);
+
+    if (bin.size == 0 || bin.size >= 1024) return enif_make_badarg(env);
+
+    char path[1024];
+    memcpy(path, bin.data, bin.size);
+    path[bin.size] = '\0';
+
+    int width = 0, height = 0, channels = 0;
+
+    unsigned char* pixels =
+        stbi_load(path, &width, &height, &channels, STBI_rgb_alpha);
+
+    if (!pixels) {
+        enif_fprintf(stderr, "texture: failed to load image: %s\n", path);
+        return enif_make_atom(env, "error");
+    }
+
+    texture_res_t* tex = create_texture_from_pixels(
+        env, pixels, (uint32_t)width, (uint32_t)height);
+
+    stbi_image_free(pixels);
+
+    if (!tex) return enif_make_atom(env, "error");
+
+    image_res_t* img = tex->image;
+
+    ERL_NIF_TERM img_term = enif_make_resource(env, img);
+    ERL_NIF_TERM tex_term = enif_make_resource(env, tex);
+
+    enif_release_resource(img);
     enif_release_resource(tex);
 
     return enif_make_tuple2(env, img_term, tex_term);

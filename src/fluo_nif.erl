@@ -18,7 +18,8 @@
   create_depth_image/2,
   read_image/1,
   window_delta_time/1,
-  create_texture/3
+  create_texture/3,
+  load_texture_from_path/1
 ]).
 
 -nifs([
@@ -39,7 +40,8 @@
   create_depth_image/2,
   read_image/1,
   window_delta_time/1,
-  create_texture/3
+  create_texture/3,
+  load_texture_from_path/1
 ]).
 
 -on_load(init/0).
@@ -64,3 +66,4 @@ create_depth_image(_, _) -> erlang:nif_error(not_loaded).
 read_image(_) -> erlang:nif_error(not_loaded).
 window_delta_time(_) -> erlang:nif_error(not_loaded).
 create_texture(_, _, _) -> erlang:nif_error(not_loaded).
+load_texture_from_path(_) -> erlang:nif_error(not_loaded).
