@@ -54,6 +54,9 @@ static ErlNifFunc nif_funcs[] = {
     {"window_keys_down", 1, nif_window_keys_down},
     {"window_mouse_pos", 1, nif_window_mouse_pos},
     {"window_mouse_delta", 1, nif_window_mouse_delta},
+    {"window_delta_time", 1, nif_window_delta_time},
+    {"window_capture_mouse", 1, nif_window_capture_mouse},
+    {"window_release_mouse", 1, nif_window_release_mouse},
     {"create_mesh", 2, nif_create_mesh},
     {"load_mesh_from_obj", 1, nif_load_mesh_from_obj},
     {"create_renderer", 2, nif_create_renderer},
@@ -64,7 +67,6 @@ static ErlNifFunc nif_funcs[] = {
     {"create_depth_image", 2, nif_create_depth_image},
     {"create_color_image", 2, nif_create_color_image},
     {"read_image", 1, nif_read_image},
-    {"window_delta_time", 1, nif_window_delta_time},
     {"create_texture", 3, nif_create_texture},
     {"load_texture_from_path", 1, nif_load_texture_from_path},
 };

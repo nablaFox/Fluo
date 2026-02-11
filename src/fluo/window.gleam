@@ -49,6 +49,7 @@ pub type Key {
   ArrowLeft
   ArrowRight
   Enter
+  Escape
   Space
   Backspace
   Tab
@@ -87,6 +88,12 @@ pub fn swap(window: Window, color: ColorImage) -> Nil
 
 @external(erlang, "fluo_nif", "window_delta_time")
 pub fn delta(window: Window) -> Float
+
+@external(erlang, "fluo_nif", "window_capture_mouse")
+pub fn capture_mouse(window: Window) -> Nil
+
+@external(erlang, "fluo_nif", "window_release_mouse")
+pub fn release_mouse(window: Window) -> Nil
 
 pub fn create_window(
   title: String,
@@ -136,6 +143,8 @@ pub type Context(params) {
     color: ColorImage,
     depth: DepthImage,
     title: String,
+    capture_mouse: fn() -> Nil,
+    release_mouse: fn() -> Nil,
   )
 }
 
@@ -159,6 +168,10 @@ pub fn loop(
 
       let mouse_delta = mouse_delta(window)
 
+      let capture_mouse = fn() { capture_mouse(window) }
+
+      let release_mouse = fn() { release_mouse(window) }
+
       let draw = fn(renderer, mesh, params) {
         let color = Some(window.color)
         let depth = Some(window.depth)
@@ -178,6 +191,8 @@ pub fn loop(
           window.color,
           window.depth,
           window.title,
+          capture_mouse,
+          release_mouse,
         )
 
       let state = callback(ctx, state)

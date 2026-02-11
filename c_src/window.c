@@ -443,6 +443,9 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
         return enif_make_badarg(env);
     }
 
+    glfwSetInputMode(res->handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetInputMode(res->handle, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+
     if (glfwCreateWindowSurface(g_device.instance, res->handle, NULL,
                                 &res->surface) != VK_SUCCESS) {
         enif_release_resource(res);
@@ -508,6 +511,7 @@ ERL_NIF_TERM nif_window_keys_down(ErlNifEnv* env, int argc,
 
     static const KeySpec ORDER[] = {
         {GLFW_KEY_ENTER, "enter"},
+        {GLFW_KEY_ESCAPE, "escape"},
         {GLFW_KEY_SPACE, "space"},
         {GLFW_KEY_BACKSPACE, "backspace"},
         {GLFW_KEY_TAB, "tab"},
@@ -634,6 +638,32 @@ ERL_NIF_TERM nif_window_delta_time(ErlNifEnv* env, int argc,
     if (dt > 0.1) dt = 0.1;
 
     return enif_make_double(env, dt);
+}
+
+ERL_NIF_TERM nif_window_capture_mouse(ErlNifEnv* env, int argc,
+                                      const ERL_NIF_TERM argv[]) {
+    if (argc != 1) return enif_make_badarg(env);
+
+    window_res_t* w = get_window_from_term(env, argv[0]);
+
+    if (!w || !w->handle) return enif_make_badarg(env);
+
+    glfwSetInputMode(w->handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    return enif_make_atom(env, "ok");
+}
+
+ERL_NIF_TERM nif_window_release_mouse(ErlNifEnv* env, int argc,
+                                      const ERL_NIF_TERM argv[]) {
+    if (argc != 1) return enif_make_badarg(env);
+
+    window_res_t* w = get_window_from_term(env, argv[0]);
+
+    if (!w || !w->handle) return enif_make_badarg(env);
+
+    glfwSetInputMode(w->handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
+    return enif_make_atom(env, "ok");
 }
 
 window_res_t* get_window_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {

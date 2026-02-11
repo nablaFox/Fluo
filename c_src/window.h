@@ -46,6 +46,10 @@ ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc, const ERL_NIF_TERM
 
 ERL_NIF_TERM nif_window_delta_time(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
+ERL_NIF_TERM nif_window_capture_mouse(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM nif_window_release_mouse(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
 window_res_t* get_window_from_term(ErlNifEnv* env, ERL_NIF_TERM term);
 
 uint32_t get_curr_swapchain_idx(const window_res_t* w, VkSemaphore signal_sem);
