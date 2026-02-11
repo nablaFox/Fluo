@@ -575,7 +575,7 @@ ERL_NIF_TERM nif_window_mouse_pos(ErlNifEnv* env, int argc,
     glfwGetCursorPos(w->handle, &x, &y);
 
     ERL_NIF_TERM pos_tuple =
-        enif_make_tuple3(env, enif_make_atom(env, "mouse_pos"),
+        enif_make_tuple3(env, enif_make_atom(env, "position"),
                          enif_make_double(env, x), enif_make_double(env, y));
 
     return pos_tuple;
@@ -596,7 +596,7 @@ ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc,
         w->last_mouse_y = y;
         w->has_last_mouse = 1;
 
-        return enif_make_tuple3(env, enif_make_atom(env, "mouse_delta"),
+        return enif_make_tuple3(env, enif_make_atom(env, "position"),
                                 enif_make_double(env, 0.0),
                                 enif_make_double(env, 0.0));
     }
@@ -607,7 +607,7 @@ ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc,
     w->last_mouse_x = x;
     w->last_mouse_y = y;
 
-    return enif_make_tuple3(env, enif_make_atom(env, "mouse_delta"),
+    return enif_make_tuple3(env, enif_make_atom(env, "position"),
                             enif_make_double(env, dx),
                             enif_make_double(env, dy));
 }

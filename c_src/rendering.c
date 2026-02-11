@@ -513,8 +513,11 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
     vkCmdSetAlphaToOneEnableEXT_(cmd, VK_FALSE);
     vkCmdSetCullMode(cmd, VK_CULL_MODE_NONE);
     vkCmdSetFrontFace(cmd, VK_FRONT_FACE_CLOCKWISE);
-    vkCmdSetDepthTestEnable(cmd, VK_FALSE);
-    vkCmdSetDepthWriteEnable(cmd, VK_FALSE);
+
+    vkCmdSetDepthTestEnable(cmd, VK_TRUE);
+    vkCmdSetDepthWriteEnable(cmd, VK_TRUE);
+    vkCmdSetDepthCompareOp(cmd, VK_COMPARE_OP_LESS_OR_EQUAL);
+
     vkCmdSetDepthBiasEnable(cmd, VK_FALSE);
     vkCmdSetStencilTestEnable(cmd, VK_FALSE);
     vkCmdSetPrimitiveTopology(cmd, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
