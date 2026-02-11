@@ -135,6 +135,7 @@ pub type Context(params) {
   Context(
     draw: fn(Renderer, Mesh, params) -> Nil,
     delta: Float,
+    fps: Float,
     keys_down: List(Key),
     mouse_pos: Position,
     mouse_delta: Position,
@@ -172,6 +173,11 @@ pub fn loop(
 
       let release_mouse = fn() { release_mouse(window) }
 
+      let fps = case delta {
+        0.0 -> 0.0
+        _ -> 1.0 /. delta
+      }
+
       let draw = fn(renderer, mesh, params) {
         let color = Some(window.color)
         let depth = Some(window.depth)
@@ -183,6 +189,7 @@ pub fn loop(
         Context(
           draw,
           delta,
+          fps,
           keys_down,
           mouse_pos,
           mouse_delta,

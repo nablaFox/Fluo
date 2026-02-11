@@ -8,6 +8,38 @@
 
 static ErlNifResourceType* WINDOW_RES_TYPE = NULL;
 
+static void cursor_pos_cb(GLFWwindow* win, double x, double y) {
+    window_res_t* w = (window_res_t*)glfwGetWindowUserPointer(win);
+    if (!w) return;
+
+    w->curr_cb_x = x;
+    w->curr_cb_y = y;
+
+    if (!w->has_last_cb) {
+        w->has_last_cb = 1;
+        w->last_cb_x = x;
+        w->last_cb_y = y;
+        return;
+    }
+
+    w->accum_dx += (x - w->last_cb_x);
+    w->accum_dy += (y - w->last_cb_y);
+
+    w->last_cb_x = x;
+    w->last_cb_y = y;
+}
+
+static inline void reset_mouse_tracking(window_res_t* w) {
+    if (!w) return;
+
+    w->accum_dx = 0.0;
+    w->accum_dy = 0.0;
+
+    w->has_last_cb = 0;
+    w->last_cb_x = 0.0;
+    w->last_cb_y = 0.0;
+}
+
 static int create_sync_structs(window_res_t* w) {
     VkDevice dev = g_device.logical_device;
 
@@ -162,8 +194,8 @@ static VkPresentModeKHR choose_present_mode(VkSurfaceKHR surface) {
     VkPresentModeKHR chosen = VK_PRESENT_MODE_FIFO_KHR;
 
     for (uint32_t i = 0; i < count; i++) {
-        if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
-            chosen = VK_PRESENT_MODE_MAILBOX_KHR;
+        if (modes[i] == VK_PRESENT_MODE_FIFO_KHR) {
+            chosen = VK_PRESENT_MODE_FIFO_KHR;
             break;
         }
     }
@@ -379,6 +411,9 @@ static void destroy_window(window_res_t* w) {
     }
 
     if (w->handle) {
+        glfwSetCursorPosCallback(w->handle, NULL);
+        glfwSetWindowUserPointer(w->handle, NULL);
+
         glfwDestroyWindow(w->handle);
         w->handle = NULL;
     }
@@ -405,19 +440,16 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
     if (argc != 3) return enif_make_badarg(env);
 
     int width = 0, height = 0;
-
     if (!enif_get_int(env, argv[1], &width)) return enif_make_badarg(env);
     if (!enif_get_int(env, argv[2], &height)) return enif_make_badarg(env);
     if (width <= 0 || height <= 0) return enif_make_badarg(env);
 
     char* title = NULL;
-
     if (!get_c_string_from_gleam_string(env, argv[0], &title))
         return enif_make_badarg(env);
 
     window_res_t* res = (window_res_t*)enif_alloc_resource(
         WINDOW_RES_TYPE, sizeof(window_res_t));
-
     if (!res) {
         free(title);
         return enif_make_badarg(env);
@@ -430,21 +462,23 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
 
     res->handle = glfwCreateWindow(width, height, title, NULL, NULL);
 
-    res->has_last_mouse = 0;
-    res->last_mouse_x = 0.0;
-    res->last_mouse_y = 0.0;
-    res->last_time = 0.0;
-    res->has_last_time = 0;
-
     free(title);
+    title = NULL;
 
     if (!res->handle) {
         enif_release_resource(res);
         return enif_make_badarg(env);
     }
 
+    reset_mouse_tracking(res);
+    glfwSetWindowUserPointer(res->handle, res);
+    glfwSetCursorPosCallback(res->handle, cursor_pos_cb);
+
     glfwSetInputMode(res->handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetInputMode(res->handle, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+
+    res->last_time = 0.0;
+    res->has_last_time = 0;
 
     if (glfwCreateWindowSurface(g_device.instance, res->handle, NULL,
                                 &res->surface) != VK_SUCCESS) {
@@ -467,6 +501,8 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
 
     ERL_NIF_TERM handle_term = enif_make_resource(env, res);
 
+    enif_release_resource(res);
+
     return handle_term;
 }
 
@@ -477,7 +513,6 @@ ERL_NIF_TERM nif_window_should_close(ErlNifEnv* env, int argc,
     window_res_t* res = get_window_from_term(env, argv[0]);
     if (!res) return enif_make_badarg(env);
 
-    glfwPollEvents();
     int should_close = glfwWindowShouldClose(res->handle);
 
     return should_close ? enif_make_atom(env, "true")
@@ -575,14 +610,15 @@ ERL_NIF_TERM nif_window_mouse_pos(ErlNifEnv* env, int argc,
     window_res_t* w = get_window_from_term(env, argv[0]);
     if (!w || !w->handle) return enif_make_badarg(env);
 
-    double x = 0.0, y = 0.0;
-    glfwGetCursorPos(w->handle, &x, &y);
+    if (glfwGetInputMode(w->handle, GLFW_CURSOR) == GLFW_CURSOR_DISABLED) {
+        return enif_make_tuple3(env, enif_make_atom(env, "position"),
+                                enif_make_double(env, 0.0),
+                                enif_make_double(env, 0.0));
+    }
 
-    ERL_NIF_TERM pos_tuple =
-        enif_make_tuple3(env, enif_make_atom(env, "position"),
-                         enif_make_double(env, x), enif_make_double(env, y));
-
-    return pos_tuple;
+    return enif_make_tuple3(env, enif_make_atom(env, "position"),
+                            enif_make_double(env, w->curr_cb_x),
+                            enif_make_double(env, w->curr_cb_y));
 }
 
 ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc,
@@ -592,24 +628,23 @@ ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc,
     window_res_t* w = get_window_from_term(env, argv[0]);
     if (!w || !w->handle) return enif_make_badarg(env);
 
-    double x = 0.0, y = 0.0;
-    glfwGetCursorPos(w->handle, &x, &y);
-
-    if (!w->has_last_mouse) {
-        w->last_mouse_x = x;
-        w->last_mouse_y = y;
-        w->has_last_mouse = 1;
-
+    if (!glfwGetWindowAttrib(w->handle, GLFW_FOCUSED)) {
+        reset_mouse_tracking(w);
         return enif_make_tuple3(env, enif_make_atom(env, "position"),
                                 enif_make_double(env, 0.0),
                                 enif_make_double(env, 0.0));
     }
 
-    float dx = x - w->last_mouse_x;
-    float dy = y - w->last_mouse_y;
+    double dx = w->accum_dx;
+    double dy = w->accum_dy;
 
-    w->last_mouse_x = x;
-    w->last_mouse_y = y;
+    w->accum_dx = 0.0;
+    w->accum_dy = 0.0;
+
+    if (dx > 80.0) dx = 80.0;
+    if (dx < -80.0) dx = -80.0;
+    if (dy > 80.0) dy = 80.0;
+    if (dy < -80.0) dy = -80.0;
 
     return enif_make_tuple3(env, enif_make_atom(env, "position"),
                             enif_make_double(env, dx),
@@ -645,10 +680,11 @@ ERL_NIF_TERM nif_window_capture_mouse(ErlNifEnv* env, int argc,
     if (argc != 1) return enif_make_badarg(env);
 
     window_res_t* w = get_window_from_term(env, argv[0]);
-
     if (!w || !w->handle) return enif_make_badarg(env);
 
     glfwSetInputMode(w->handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    reset_mouse_tracking(w);
 
     return enif_make_atom(env, "ok");
 }
@@ -658,10 +694,11 @@ ERL_NIF_TERM nif_window_release_mouse(ErlNifEnv* env, int argc,
     if (argc != 1) return enif_make_badarg(env);
 
     window_res_t* w = get_window_from_term(env, argv[0]);
-
     if (!w || !w->handle) return enif_make_badarg(env);
 
     glfwSetInputMode(w->handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+
+    reset_mouse_tracking(w);
 
     return enif_make_atom(env, "ok");
 }

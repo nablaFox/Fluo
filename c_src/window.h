@@ -22,9 +22,11 @@ typedef struct {
     VkCommandBuffer* blit_cmds;
     VkFence* blit_fences;
 
-    double last_mouse_x;
-    double last_mouse_y;
-    int has_last_mouse;
+    double accum_dx, accum_dy;
+    int has_last_cb;
+    double last_cb_x, last_cb_y;
+    double curr_cb_x;
+    double curr_cb_y;
 
     double last_time;
     int has_last_time;
