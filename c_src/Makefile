@@ -12,6 +12,7 @@ INCLUDES := -I./erl_nif -I./vendor
 C_SRCS := \
   vendor/spirv_reflect.c \
   texture.c \
+  params.c \
   image.c \
   rendering.c \
   utils.c \
