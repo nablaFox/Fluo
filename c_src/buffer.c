@@ -29,9 +29,13 @@ int create_gpu_buffer(GpuBuffer* out, VkDeviceSize size,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
 
-    VmaAllocationCreateInfo const alloc_info = {
+    VmaAllocationCreateInfo alloc_info = {
         .requiredFlags = memoryProperties,
     };
+
+    if (memoryProperties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+        alloc_info.flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    }
 
     VkResult vr = vmaCreateBuffer(g_device.allocator, &buff_info, &alloc_info,
                                   &out->buffer, &out->alloc, &out->info);
@@ -44,6 +48,8 @@ int create_gpu_buffer(GpuBuffer* out, VkDeviceSize size,
     out->size = size;
     out->usage = usage;
     out->memory_properties = memoryProperties;
+
+    out->mapped = out->info.pMappedData;
 
     return 1;
 }
@@ -61,24 +67,14 @@ void destroy_gpu_buffer(GpuBuffer* buf) {
 int direct_write_gpu_buffer(GpuBuffer* buf, const void* src, VkDeviceSize size,
                             VkDeviceSize offset) {
     if (!buf || !src) return 0;
-
-    if (!(buf->memory_properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
-        return 0;
-
+    if (!buf->mapped) return 0;
     if (offset + size > buf->size) return 0;
 
-    void* mapped = NULL;
-
-    if (vmaMapMemory(g_device.allocator, buf->alloc, &mapped) != VK_SUCCESS)
-        return 0;
-
-    memcpy((uint8_t*)mapped + offset, src, (size_t)size);
+    memcpy((uint8_t*)buf->mapped + offset, src, (size_t)size);
 
     if (!(buf->memory_properties & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
         vmaFlushAllocation(g_device.allocator, buf->alloc, offset, size);
     }
-
-    vmaUnmapMemory(g_device.allocator, buf->alloc);
 
     return 1;
 }

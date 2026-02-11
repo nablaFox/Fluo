@@ -191,11 +191,11 @@ static VkPresentModeKHR choose_present_mode(VkSurfaceKHR surface) {
     vkGetPhysicalDeviceSurfacePresentModesKHR(g_device.physical_device, surface,
                                               &count, modes);
 
-    VkPresentModeKHR chosen = VK_PRESENT_MODE_FIFO_KHR;
+    VkPresentModeKHR chosen = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
 
     for (uint32_t i = 0; i < count; i++) {
-        if (modes[i] == VK_PRESENT_MODE_FIFO_KHR) {
-            chosen = VK_PRESENT_MODE_FIFO_KHR;
+        if (modes[i] == VK_PRESENT_MODE_FIFO_RELAXED_KHR) {
+            chosen = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
             break;
         }
     }
@@ -459,6 +459,7 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
     res->handle = glfwCreateWindow(width, height, title, NULL, NULL);
 

@@ -7,6 +7,7 @@ typedef struct {
     VkBuffer buffer;
     VmaAllocation alloc;
     VmaAllocationInfo info;
+    void* mapped;
     VkDeviceSize size;
     VkBufferUsageFlags usage;
     VkMemoryPropertyFlags memory_properties;
