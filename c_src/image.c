@@ -471,18 +471,18 @@ ERL_NIF_TERM nif_read_image(ErlNifEnv* env, int argc,
                             const ERL_NIF_TERM argv[]) {
     if (argc != 1) return enif_make_badarg(env);
 
-    image_res_t* img = get_image_from_term(env, argv[0]);
-    if (!img || img->image == VK_NULL_HANDLE) return enif_make_badarg(env);
+    image_res_t* img = NULL;
 
-    if (!(img->aspect & VK_IMAGE_ASPECT_COLOR_BIT))
+    if (!enif_get_resource(env, argv[0], IMAGE_RES_TYPE, (void**)&img) ||
+        !img || img->image == VK_NULL_HANDLE) {
         return enif_make_badarg(env);
+    }
 
     const uint32_t w = img->extent.width;
     const uint32_t h = img->extent.height;
     if (w == 0 || h == 0) return enif_make_badarg(env);
 
     const VkDeviceSize bpp = bytes_per_pixel(img);
-
     if (bpp == 0) return enif_make_badarg(env);
 
     const VkDeviceSize size = (VkDeviceSize)w * (VkDeviceSize)h * bpp;
@@ -519,7 +519,7 @@ ERL_NIF_TERM nif_read_image(ErlNifEnv* env, int argc,
         .bufferImageHeight = 0,
         .imageSubresource =
             {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .aspectMask = img->aspect,
                 .mipLevel = 0,
                 .baseArrayLayer = 0,
                 .layerCount = 1,
@@ -554,7 +554,6 @@ ERL_NIF_TERM nif_read_image(ErlNifEnv* env, int argc,
     memcpy(bin, mapped, (size_t)size);
 
     vmaUnmapMemory(g_device.allocator, staging_alloc);
-
     vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
 
     return bin_term;

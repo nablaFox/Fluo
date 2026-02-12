@@ -1,10 +1,10 @@
 import gleam/dynamic.{type Dynamic}
 
-pub opaque type ColorImage {
+pub type ColorImage {
   ColorImage(width: Int, height: Int, handle: Dynamic)
 }
 
-pub opaque type DepthImage {
+pub type DepthImage {
   DepthImage(width: Int, height: Int, handle: Dynamic)
 }
 
@@ -15,7 +15,15 @@ fn create_color_image_raw(width: Int, height: Int) -> Dynamic
 fn create_depth_image_raw(width: Int, height: Int) -> Dynamic
 
 @external(erlang, "fluo_nif", "read_image")
-pub fn read(image: ColorImage) -> BitArray
+fn read_image_raw(handle: Dynamic) -> BitArray
+
+pub fn read_color(image: ColorImage) -> BitArray {
+  read_image_raw(image.handle)
+}
+
+pub fn read_depth(image: DepthImage) -> BitArray {
+  read_image_raw(image.handle)
+}
 
 pub fn create_color_image(width: Int, height: Int) -> ColorImage {
   let handle = create_color_image_raw(width, height)

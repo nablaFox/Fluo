@@ -2,7 +2,6 @@ import fluo/color.{red}
 import fluo/image
 import fluo/mesh
 import fluo/render
-import gleam/option.{None, Some}
 
 pub fn main() {
   let triangle = mesh.load_obj("assets/suzanne.obj")
@@ -16,17 +15,17 @@ pub fn main() {
 
   let color = image.create_color_image(500, 500)
 
-  render.start_rendering()
+  render.start_color_rendering(color)
 
   render.draw(
     renderer,
     triangle,
-    #(red.r, red.g, red.b, 1.0),
-    Some(color),
-    None,
+    params: #(red.r, red.g, red.b, 1.0),
+    scissor: #(0, 0, color.width, color.height),
+    viewport: #(0, 0, color.width, color.height),
   )
 
   render.end_rendering()
 
-  echo image.read(color)
+  echo image.read_color(color)
 }
