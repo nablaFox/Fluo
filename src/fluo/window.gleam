@@ -131,9 +131,9 @@ pub fn depth(window: Window) -> DepthImage {
   window.depth
 }
 
-pub type Context(params) {
+pub type Context(params, material) {
   Context(
-    draw: fn(Renderer, Mesh, params) -> Nil,
+    draw: fn(Renderer(material), Mesh, params) -> Nil,
     delta: Float,
     fps: Float,
     keys_down: List(Key),
@@ -152,7 +152,7 @@ pub type Context(params) {
 pub fn loop(
   window: Window,
   state: state,
-  callback: fn(Context(params), state) -> state,
+  callback: fn(Context(params, material), state) -> state,
 ) {
   case window_should_close(window) {
     True -> Nil

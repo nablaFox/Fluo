@@ -3,17 +3,30 @@ import fluo/mesh.{type Mesh}
 import gleam/dynamic.{type Dynamic}
 import gleam/option.{type Option}
 
-pub opaque type Renderer {
-  Renderer(frag_name: String, vert_name: String, handle: Dynamic)
+pub opaque type Renderer(material) {
+  Renderer(
+    material: material,
+    frag_name: String,
+    vert_name: String,
+    handle: Dynamic,
+  )
 }
 
 @external(erlang, "fluo_nif", "create_renderer")
-fn create_renderer_raw(vert vert: String, frag frag: String) -> Dynamic
+fn create_renderer_raw(
+  material: material,
+  vert: String,
+  frag: String,
+) -> Dynamic
 
-pub fn create_renderer(vert vert: String, frag frag: String) -> Renderer {
-  let handle = create_renderer_raw(vert, frag)
+pub fn create_renderer(
+  material: material,
+  vert vert: String,
+  frag frag: String,
+) -> Renderer(material) {
+  let handle = create_renderer_raw(material, vert, frag)
 
-  Renderer(vert, frag, handle)
+  Renderer(material, vert, frag, handle)
 }
 
 @external(erlang, "fluo_nif", "start_rendering")
@@ -21,7 +34,7 @@ pub fn start_rendering() -> Nil
 
 @external(erlang, "fluo_nif", "draw_mesh")
 pub fn draw(
-  renderer: Renderer,
+  renderer: Renderer(material),
   mesh: Mesh,
   params: params,
   color color: Option(ColorImage),

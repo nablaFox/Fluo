@@ -247,7 +247,7 @@ texture_res_t* create_texture_from_pixels(ErlNifEnv* env, const uint8_t* pixels,
     VkWriteDescriptorSet w = {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = g_device.descriptor_set,
-        .dstBinding = SAMPLER_BINDING,
+        .dstBinding = TEXTURE_BINDING,
         .dstArrayElement = tex->texture_index,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,

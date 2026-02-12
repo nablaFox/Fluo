@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "renderer.h"
+
 #ifdef DEBUG
 #include <erl_nif.h>
 #endif
@@ -372,19 +374,19 @@ static void create_bindless_descriptors(void) {
 
     VkDescriptorSetLayoutBinding bindings[] = {
         {
-            .binding = STORAGE_BUFFER_BINDING,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = MAX_BINDLESS_RESOURCES,
-            .stageFlags = VK_SHADER_STAGE_ALL,
-        },
-        {
-            .binding = UNIFORM_BINDING,
+            .binding = MATERIAL_BINDING,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = MAX_BINDLESS_RESOURCES,
             .stageFlags = VK_SHADER_STAGE_ALL,
         },
         {
-            .binding = SAMPLER_BINDING,
+            .binding = PARAMS_BINDING,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = MAX_BINDLESS_RESOURCES,
+            .stageFlags = VK_SHADER_STAGE_ALL,
+        },
+        {
+            .binding = TEXTURE_BINDING,
             .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
             .descriptorCount = MAX_BINDLESS_RESOURCES,
             .stageFlags = VK_SHADER_STAGE_ALL,
@@ -422,7 +424,7 @@ static void create_bindless_descriptors(void) {
 
     VkDescriptorPoolSize pool_sizes[] = {
         {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MAX_BINDLESS_RESOURCES},
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_BINDLESS_RESOURCES},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, MAX_BINDLESS_RESOURCES * 2},
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_BINDLESS_RESOURCES},
     };
 
@@ -452,7 +454,7 @@ static void create_bindless_descriptors(void) {
     VkPushConstantRange push_range = {
         .stageFlags = VK_SHADER_STAGE_ALL,
         .offset = 0,
-        .size = sizeof(uint32_t),
+        .size = sizeof(PushConstants),
     };
 
     VkPipelineLayoutCreateInfo pipeline_layout_info = {
@@ -465,6 +467,7 @@ static void create_bindless_descriptors(void) {
 
     r = vkCreatePipelineLayout(dev, &pipeline_layout_info, NULL,
                                &g_device.pipeline_layout);
+
     assert(r == VK_SUCCESS);
 }
 

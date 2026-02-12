@@ -12,7 +12,7 @@
   window_release_mouse/1,
   create_mesh/2,
   load_mesh_from_obj/1,
-  create_renderer/2,
+  create_renderer/3,
   start_rendering/0,
   draw_mesh/5,
   end_rendering/0,
@@ -36,7 +36,7 @@
   window_release_mouse/1,
   create_mesh/2,
   load_mesh_from_obj/1,
-  create_renderer/2,
+  create_renderer/3,
   start_rendering/0,
   draw_mesh/5,
   end_rendering/0,
@@ -71,7 +71,7 @@ window_capture_mouse(_) -> erlang:nif_error(not_loaded).
 window_release_mouse(_) -> erlang:nif_error(not_loaded).
 create_mesh(_, _) -> erlang:nif_error(not_loaded).
 load_mesh_from_obj(_) -> erlang:nif_error(not_loaded).
-create_renderer(_, _) -> erlang:nif_error(not_loaded).
+create_renderer(_, _, _) -> erlang:nif_error(not_loaded).
 start_rendering() -> erlang:nif_error(not_loaded).
 draw_mesh(_, _, _, _, _) -> erlang:nif_error(not_loaded).
 end_rendering() -> erlang:nif_error(not_loaded).

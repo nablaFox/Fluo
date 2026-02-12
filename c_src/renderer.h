@@ -5,6 +5,7 @@
 
 typedef struct {
     uint32_t material_index;
+    uint32_t params_index;
 } PushConstants;
 
 typedef enum {
@@ -20,8 +21,12 @@ typedef enum {
 typedef struct {
     VkShaderEXT frag_shader;
     VkShaderEXT vert_shader;
-    uint32_t material_index[FRAMES_IN_FLIGHT];
-    GpuBuffer material_ubo[FRAMES_IN_FLIGHT];
+
+    GpuBuffer params_ubo[FRAMES_IN_FLIGHT];
+    uint32_t params_index[FRAMES_IN_FLIGHT];
+
+    GpuBuffer material_ubo;
+    uint32_t material_index;
 } renderer_res_t;
 
 int nif_init_renderer_res(ErlNifEnv* env);
@@ -30,6 +35,6 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc, const ERL_NIF_TERM ar
 
 renderer_res_t* get_renderer_from_term(ErlNifEnv* env, ERL_NIF_TERM term);
 
-uint32_t get_material_index_for_frame(const renderer_res_t* r, uint32_t frame);
+uint32_t get_params_index_for_frame(const renderer_res_t* r, uint32_t frame);
 
-void update_material_for_frame(ErlNifEnv* env, const renderer_res_t* r, uint32_t frame, ERL_NIF_TERM params);
+void update_params_for_frame(ErlNifEnv* env, const renderer_res_t* r, uint32_t frame, ERL_NIF_TERM params);

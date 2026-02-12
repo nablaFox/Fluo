@@ -368,7 +368,7 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
 
     if (!color_image && !depth_image) return enif_make_badarg(env);
 
-    update_material_for_frame(env, renderer, frame, params);
+    update_params_for_frame(env, renderer, frame, params);
 
     const VkClearColorValue clear_color = {{0.0f, 0.0f, 0.0f, 1.0f}};
 
@@ -449,7 +449,8 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
                             &g_device.descriptor_set, 0, NULL);
 
     PushConstants push_constants = {
-        .material_index = get_material_index_for_frame(renderer, frame),
+        .material_index = renderer->material_index,
+        .params_index = get_params_index_for_frame(renderer, frame),
     };
 
     vkCmdPushConstants(cmd, g_device.pipeline_layout, VK_SHADER_STAGE_ALL, 0,

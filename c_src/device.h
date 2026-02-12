@@ -7,9 +7,9 @@
 
 #define MAX_BINDLESS_RESOURCES 65536
 
-#define STORAGE_BUFFER_BINDING 0
-#define UNIFORM_BINDING 1
-#define SAMPLER_BINDING 2
+#define MATERIAL_BINDING 0
+#define PARAMS_BINDING 1
+#define TEXTURE_BINDING 2
 
 struct Device {
     VkInstance instance;

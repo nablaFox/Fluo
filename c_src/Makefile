@@ -3,7 +3,7 @@ LIB_NAME := libfluo_nif
 SO := $(APP_PRIV_DIR)/$(LIB_NAME).so
 
 CXX := g++
-CXXFLAGS := -fPIC -Wall 
+CXXFLAGS := -fPIC -Wall -DDEBUG
 LDFLAGS := -shared
 LDLIBS := -lvulkan -lglfw
 
