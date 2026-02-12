@@ -68,3 +68,5 @@ ERL_NIF_TERM nif_create_depth_image(ErlNifEnv* env, int argc, const ERL_NIF_TERM
 ERL_NIF_TERM nif_create_color_image(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM nif_read_image(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM nif_save_color_image_to_png(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);

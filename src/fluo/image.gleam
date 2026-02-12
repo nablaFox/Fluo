@@ -17,6 +17,9 @@ fn create_depth_image_raw(width: Int, height: Int) -> Dynamic
 @external(erlang, "fluo_nif", "read_image")
 fn read_image_raw(handle: Dynamic) -> BitArray
 
+@external(erlang, "fluo_nif", "save_color_image")
+pub fn save_color_image(image: ColorImage, path: String) -> Nil
+
 pub fn read_color(image: ColorImage) -> BitArray {
   read_image_raw(image.handle)
 }

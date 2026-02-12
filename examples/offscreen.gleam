@@ -27,5 +27,5 @@ pub fn main() {
 
   render.end_rendering()
 
-  echo image.read_color(color)
+  image.save_color_image(color, "output.png")
 }

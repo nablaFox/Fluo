@@ -2,7 +2,6 @@ import fluo/color.{red}
 import fluo/mesh
 import fluo/render.{create_renderer}
 import fluo/window.{create_window}
-import gleam/option.{None, Some}
 
 pub fn main() {
   let window1 = create_window("Fluo Window 1", width: 800, height: 600)
@@ -25,16 +24,18 @@ fn game_loop(
   case window.window_should_close(window1) {
     True -> Nil
     False -> {
-      render.start_rendering()
-
       let color = window.color(window1)
+      let width = window.width(window1)
+      let height = window.height(window1)
+
+      render.start_color_rendering(color)
 
       render.draw(
         renderer,
         mesh,
-        #(red.r, red.g, red.b, alpha),
-        Some(color),
-        None,
+        params: #(red.r, red.g, red.b, alpha),
+        viewport: #(0, 0, width, height),
+        scissor: #(0, 0, width, height),
       )
 
       render.end_rendering()

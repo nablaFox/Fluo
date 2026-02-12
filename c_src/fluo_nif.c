@@ -69,6 +69,7 @@ static ErlNifFunc nif_funcs[] = {
     {"read_image", 1, nif_read_image},
     {"create_texture", 3, nif_create_texture},
     {"load_texture_from_path", 1, nif_load_texture_from_path},
+    {"save_color_image", 2, nif_save_color_image_to_png},
 };
 
 ERL_NIF_INIT(fluo_nif, nif_funcs, load, NULL, NULL, unload)
