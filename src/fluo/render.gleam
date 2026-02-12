@@ -1,7 +1,7 @@
 import fluo/image.{type ColorImage, type DepthImage}
 import fluo/mesh.{type Mesh}
 import gleam/dynamic.{type Dynamic}
-import gleam/option.{type Option}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 
 pub opaque type Renderer(material) {
@@ -36,15 +36,30 @@ pub fn create_renderer(
 }
 
 @external(erlang, "fluo_nif", "start_rendering")
-pub fn start_rendering() -> Nil
+fn start_rendering_raw(
+  color: Option(ColorImage),
+  depth: Option(DepthImage),
+) -> Nil
+
+pub fn start_rendering(color: ColorImage, depth: DepthImage) -> Nil {
+  start_rendering_raw(Some(color), Some(depth))
+}
+
+pub fn start_color_rendering(color: ColorImage) -> Nil {
+  start_rendering_raw(Some(color), None)
+}
+
+pub fn start_depth_rendering(depth: DepthImage) -> Nil {
+  start_rendering_raw(None, Some(depth))
+}
 
 @external(erlang, "fluo_nif", "draw_mesh")
 pub fn draw(
   renderer: Renderer(material),
-  mesh: Mesh,
+  mesh mesh: Mesh,
   params params: params,
-  color color: Option(ColorImage),
-  depth depth: Option(DepthImage),
+  scissor scissor: #(Int, Int, Int, Int),
+  viewport viewport: #(Int, Int, Int, Int),
 ) -> Nil
 
 @external(erlang, "fluo_nif", "end_rendering")

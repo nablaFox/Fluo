@@ -2,6 +2,7 @@
 
 #include "device.h"
 #include "mesh.h"
+#include "params.h"
 #include "renderer.h"
 #include "utils.h"
 #include "window.h"
@@ -26,6 +27,29 @@ static PFN_vkCmdSetColorBlendEnableEXT vkCmdSetColorBlendEnableEXT_;
 static PFN_vkCmdSetColorWriteMaskEXT vkCmdSetColorWriteMaskEXT_;
 static PFN_vkCmdSetColorBlendEquationEXT vkCmdSetColorBlendEquationEXT_;
 static PFN_vkCmdSetLogicOpEnableEXT vkCmdSetLogicOpEnableEXT_;
+
+static image_res_t* get_image_from_option(ErlNifEnv* env, ERL_NIF_TERM term) {
+    if (enif_is_atom(env, term)) {
+        char a[16];
+        if (enif_get_atom(env, term, a, sizeof(a), ERL_NIF_LATIN1) &&
+            strcmp(a, "none") == 0) {
+            return NULL;
+        }
+    }
+
+    const ERL_NIF_TERM* elems = NULL;
+    int arity = 0;
+    if (enif_get_tuple(env, term, &arity, &elems) && arity == 2) {
+        char tag[16];
+        if (enif_is_atom(env, elems[0]) &&
+            enif_get_atom(env, elems[0], tag, sizeof(tag), ERL_NIF_LATIN1) &&
+            strcmp(tag, "some") == 0) {
+            return get_image_from_term(env, elems[1]);
+        }
+    }
+
+    return get_image_from_term(env, term);
+}
 
 int init_rendering_res() {
     memset(render_cmds, 0, sizeof(render_cmds));
@@ -164,6 +188,7 @@ ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc,
     vkResetFences(dev, 1, &render_fences[frame]);
 
     VkCommandBuffer cmd = render_cmds[frame];
+
     vkResetCommandBuffer(cmd, 0);
 
     VkCommandBufferBeginInfo begin = {
@@ -171,6 +196,72 @@ ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc,
     };
 
     THROW_VK_ERROR(env, vkBeginCommandBuffer(cmd, &begin));
+
+    image_res_t* color_image = get_image_from_option(env, argv[0]);
+
+    image_res_t* depth_image = get_image_from_option(env, argv[1]);
+
+    if (!color_image && !depth_image) return enif_make_badarg(env);
+
+    const VkClearColorValue clear_color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+
+    VkRenderingAttachmentInfo draw_attach_info = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .imageView = VK_NULL_HANDLE,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .clearValue = {.color = clear_color},
+    };
+
+    if (color_image != NULL) {
+        draw_attach_info.imageView = color_image->view;
+    }
+
+    const VkClearDepthStencilValue clear_depth = {1.0f, 0};
+
+    VkRenderingAttachmentInfo depth_attach_info = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .clearValue.depthStencil = clear_depth,
+    };
+
+    if (depth_image != NULL) {
+        depth_attach_info.imageView = depth_image->view;
+    }
+
+    VkExtent2D extent = {
+        .width =
+            color_image ? color_image->extent.width : depth_image->extent.width,
+        .height = color_image ? color_image->extent.height
+                              : depth_image->extent.height,
+    };
+
+    VkRenderingInfo rendering_info = {
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .renderArea = {{0, 0}, extent},
+        .layerCount = 1,
+    };
+
+    if (color_image != NULL) {
+        rendering_info.colorAttachmentCount = 1;
+        rendering_info.pColorAttachments = &draw_attach_info;
+
+        transition_image_layout((image_res_t*)color_image,
+                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, cmd);
+    }
+
+    if (depth_image != NULL) {
+        rendering_info.pDepthAttachment = &depth_attach_info;
+
+        transition_image_layout(
+            (image_res_t*)depth_image,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, cmd);
+    }
+
+    vkCmdBeginRendering(cmd, &rendering_info);
 
     return enif_make_atom(env, "ok");
 }
@@ -182,6 +273,8 @@ ERL_NIF_TERM nif_end_rendering(ErlNifEnv* env, int argc,
 
     VkQueue q = g_device.graphics_queue;
     VkCommandBuffer cmd = render_cmds[frame];
+
+    vkCmdEndRendering(cmd);
 
     THROW_VK_ERROR(env, vkEndCommandBuffer(cmd));
 
@@ -198,7 +291,7 @@ ERL_NIF_TERM nif_end_rendering(ErlNifEnv* env, int argc,
     VkSemaphoreSubmitInfo signal_info = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
         .semaphore = finished_rendering_sem,
-        .value = signal_value,  // IMPORTANT
+        .value = signal_value,
         .stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
         .deviceIndex = 0,
     };
@@ -212,6 +305,136 @@ ERL_NIF_TERM nif_end_rendering(ErlNifEnv* env, int argc,
     };
 
     THROW_VK_ERROR(env, vkQueueSubmit2(q, 1, &submit, render_fences[frame]));
+
+    return enif_make_atom(env, "ok");
+}
+
+ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
+                           const ERL_NIF_TERM argv[]) {
+    const renderer_res_t* renderer = get_renderer_from_term(env, argv[0]);
+
+    if (!renderer) return enif_make_badarg(env);
+
+    const mesh_res_t* mesh = get_mesh_from_term(env, argv[1]);
+
+    if (!mesh) return enif_make_badarg(env);
+
+    const ERL_NIF_TERM params = argv[2];
+
+    update_params_for_frame(env, renderer, frame, params);
+
+    VkViewport viewport = {0};
+
+    if (!get_viewport_from_term(env, argv[3], &viewport))
+        return enif_make_badarg(env);
+
+    VkRect2D scissor = {0};
+
+    if (!get_scissor_from_term(env, argv[4], &scissor))
+        return enif_make_badarg(env);
+
+    VkCommandBuffer cmd = render_cmds[frame];
+
+    VkShaderStageFlagBits stages[] = {
+        VK_SHADER_STAGE_VERTEX_BIT,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+    };
+
+    VkShaderEXT shaders[2];
+
+    shaders[0] = renderer->vert_shader;
+    shaders[1] = renderer->frag_shader;
+
+    vkCmdBindShadersEXT_(cmd, 2, stages, shaders);
+
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            g_device.pipeline_layout, 0, 1,
+                            &g_device.descriptor_set, 0, NULL);
+
+    PushConstants push_constants = {
+        .material_index = renderer->material_index,
+        .params_index = get_params_index_for_frame(renderer, frame),
+    };
+
+    vkCmdPushConstants(cmd, g_device.pipeline_layout, VK_SHADER_STAGE_ALL, 0,
+                       sizeof(PushConstants), &push_constants);
+
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertex_buffer.buffer, &offset);
+
+    VkVertexInputBindingDescription2EXT binding = {
+        .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_BINDING_DESCRIPTION_2_EXT,
+        .binding = 0,
+        .stride = sizeof(VertexGPU),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+        .divisor = 1,
+    };
+
+    VkVertexInputAttributeDescription2EXT attributes[] = {
+        {
+            .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
+            .location = 0,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32_SFLOAT,
+            .offset = offsetof(VertexGPU, pos),
+        },
+        {
+            .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
+            .location = 1,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32_SFLOAT,
+            .offset = offsetof(VertexGPU, normal),
+        },
+        {
+            .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
+            .location = 2,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = offsetof(VertexGPU, uv),
+        },
+    };
+
+    vkCmdSetVertexInputEXT_(cmd, 1, &binding, 3, attributes);
+
+    VkDeviceSize offset_indices = 0;
+
+    vkCmdBindIndexBuffer(cmd, mesh->index_buffer.buffer, offset_indices,
+                         VK_INDEX_TYPE_UINT32);
+
+    vkCmdSetViewportWithCount(cmd, 1, &viewport);
+    vkCmdSetScissorWithCount(cmd, 1, &scissor);
+    vkCmdSetRasterizerDiscardEnable(cmd, VK_FALSE);
+    vkCmdSetPolygonModeEXT_(cmd, VK_POLYGON_MODE_FILL);
+    vkCmdSetRasterizationSamplesEXT_(cmd, VK_SAMPLE_COUNT_1_BIT);
+    VkSampleMask sample_mask = 0xFFFFFFFF;
+    vkCmdSetSampleMaskEXT_(cmd, VK_SAMPLE_COUNT_1_BIT, &sample_mask);
+    vkCmdSetAlphaToCoverageEnableEXT_(cmd, VK_FALSE);
+    vkCmdSetAlphaToOneEnableEXT_(cmd, VK_FALSE);
+    vkCmdSetCullMode(cmd, VK_CULL_MODE_NONE);
+    vkCmdSetFrontFace(cmd, VK_FRONT_FACE_CLOCKWISE);
+
+    vkCmdSetDepthTestEnable(cmd, VK_TRUE);
+    vkCmdSetDepthWriteEnable(cmd, VK_TRUE);
+    vkCmdSetDepthCompareOp(cmd, VK_COMPARE_OP_LESS_OR_EQUAL);
+
+    vkCmdSetDepthBiasEnable(cmd, VK_FALSE);
+    vkCmdSetStencilTestEnable(cmd, VK_FALSE);
+    vkCmdSetPrimitiveTopology(cmd, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    vkCmdSetPrimitiveRestartEnable(cmd, VK_FALSE);
+    VkBool32 blend_enable = VK_FALSE;
+    vkCmdSetColorBlendEnableEXT_(cmd, 0, 1, &blend_enable);
+    VkColorComponentFlags write_mask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    vkCmdSetColorWriteMaskEXT_(cmd, 0, 1, &write_mask);
+    VkColorBlendEquationEXT blend_eq = {
+        VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO, VK_BLEND_OP_ADD,
+        VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO, VK_BLEND_OP_ADD,
+    };
+    vkCmdSetColorBlendEquationEXT_(cmd, 0, 1, &blend_eq);
+    vkCmdSetLogicOpEnableEXT_(cmd, VK_FALSE);
+
+    vkCmdDrawIndexed(cmd, mesh->indices_count, 1, 0, 0, 0);
 
     return enif_make_atom(env, "ok");
 }
@@ -323,222 +546,6 @@ ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
     if (pr != VK_SUCCESS && pr != VK_SUBOPTIMAL_KHR) {
         THROW_VK_ERROR(env, pr);
     }
-
-    return enif_make_atom(env, "ok");
-}
-
-static image_res_t* get_image_from_option(ErlNifEnv* env, ERL_NIF_TERM term) {
-    if (enif_is_atom(env, term)) {
-        char a[16];
-        if (enif_get_atom(env, term, a, sizeof(a), ERL_NIF_LATIN1) &&
-            strcmp(a, "none") == 0) {
-            return NULL;
-        }
-    }
-
-    const ERL_NIF_TERM* elems = NULL;
-    int arity = 0;
-    if (enif_get_tuple(env, term, &arity, &elems) && arity == 2) {
-        char tag[16];
-        if (enif_is_atom(env, elems[0]) &&
-            enif_get_atom(env, elems[0], tag, sizeof(tag), ERL_NIF_LATIN1) &&
-            strcmp(tag, "some") == 0) {
-            return get_image_from_term(env, elems[1]);
-        }
-    }
-
-    return get_image_from_term(env, term);
-}
-
-ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
-                           const ERL_NIF_TERM argv[]) {
-    const renderer_res_t* renderer = get_renderer_from_term(env, argv[0]);
-
-    if (!renderer) return enif_make_badarg(env);
-
-    const mesh_res_t* mesh = get_mesh_from_term(env, argv[1]);
-
-    if (!mesh) return enif_make_badarg(env);
-
-    const ERL_NIF_TERM params = argv[2];
-
-    image_res_t* color_image = get_image_from_option(env, argv[3]);
-
-    image_res_t* depth_image = get_image_from_option(env, argv[4]);
-
-    if (!color_image && !depth_image) return enif_make_badarg(env);
-
-    update_params_for_frame(env, renderer, frame, params);
-
-    const VkClearColorValue clear_color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-
-    VkRenderingAttachmentInfo draw_attach_info = {
-        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .imageView = VK_NULL_HANDLE,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .clearValue = {.color = clear_color},
-    };
-
-    if (color_image != NULL) {
-        draw_attach_info.imageView = color_image->view;
-    }
-
-    const VkClearDepthStencilValue clear_depth = {1.0f, 0};
-
-    VkRenderingAttachmentInfo depth_attach_info = {
-        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .clearValue.depthStencil = clear_depth,
-    };
-
-    if (depth_image != NULL) {
-        depth_attach_info.imageView = depth_image->view;
-    }
-
-    VkExtent2D extent = {
-        .width =
-            color_image ? color_image->extent.width : depth_image->extent.width,
-        .height = color_image ? color_image->extent.height
-                              : depth_image->extent.height,
-    };
-
-    VkRenderingInfo rendering_info = {
-        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-        .renderArea = {{0, 0}, extent},
-        .layerCount = 1,
-    };
-
-    VkCommandBuffer cmd = render_cmds[frame];
-
-    if (color_image != NULL) {
-        rendering_info.colorAttachmentCount = 1;
-        rendering_info.pColorAttachments = &draw_attach_info;
-
-        transition_image_layout((image_res_t*)color_image,
-                                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, cmd);
-    }
-
-    if (depth_image != NULL) {
-        rendering_info.pDepthAttachment = &depth_attach_info;
-
-        transition_image_layout(
-            (image_res_t*)depth_image,
-            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, cmd);
-    }
-
-    vkCmdBeginRendering(cmd, &rendering_info);
-
-    VkShaderStageFlagBits stages[] = {
-        VK_SHADER_STAGE_VERTEX_BIT,
-        VK_SHADER_STAGE_FRAGMENT_BIT,
-    };
-
-    VkShaderEXT shaders[2];
-
-    shaders[0] = renderer->vert_shader;
-    shaders[1] = renderer->frag_shader;
-
-    vkCmdBindShadersEXT_(cmd, 2, stages, shaders);
-
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            g_device.pipeline_layout, 0, 1,
-                            &g_device.descriptor_set, 0, NULL);
-
-    PushConstants push_constants = {
-        .material_index = renderer->material_index,
-        .params_index = get_params_index_for_frame(renderer, frame),
-    };
-
-    vkCmdPushConstants(cmd, g_device.pipeline_layout, VK_SHADER_STAGE_ALL, 0,
-                       sizeof(PushConstants), &push_constants);
-
-    VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertex_buffer.buffer, &offset);
-
-    VkVertexInputBindingDescription2EXT binding = {
-        .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_BINDING_DESCRIPTION_2_EXT,
-        .binding = 0,
-        .stride = sizeof(VertexGPU),
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        .divisor = 1,
-    };
-
-    VkVertexInputAttributeDescription2EXT attributes[] = {
-        {
-            .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
-            .location = 0,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(VertexGPU, pos),
-        },
-        {
-            .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
-            .location = 1,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32B32_SFLOAT,
-            .offset = offsetof(VertexGPU, normal),
-        },
-        {
-            .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_ATTRIBUTE_DESCRIPTION_2_EXT,
-            .location = 2,
-            .binding = 0,
-            .format = VK_FORMAT_R32G32_SFLOAT,
-            .offset = offsetof(VertexGPU, uv),
-        },
-    };
-
-    vkCmdSetVertexInputEXT_(cmd, 1, &binding, 3, attributes);
-
-    VkDeviceSize offset_indices = 0;
-
-    vkCmdBindIndexBuffer(cmd, mesh->index_buffer.buffer, offset_indices,
-                         VK_INDEX_TYPE_UINT32);
-
-    VkViewport viewport = {
-        0, 0, (float)extent.width, (float)extent.height, 0.0f, 1.0f,
-    };
-
-    vkCmdSetViewportWithCount(cmd, 1, &viewport);
-    VkRect2D scissor = {{0, 0}, extent};
-    vkCmdSetScissorWithCount(cmd, 1, &scissor);
-    vkCmdSetRasterizerDiscardEnable(cmd, VK_FALSE);
-    vkCmdSetPolygonModeEXT_(cmd, VK_POLYGON_MODE_FILL);
-    vkCmdSetRasterizationSamplesEXT_(cmd, VK_SAMPLE_COUNT_1_BIT);
-    VkSampleMask sample_mask = 0xFFFFFFFF;
-    vkCmdSetSampleMaskEXT_(cmd, VK_SAMPLE_COUNT_1_BIT, &sample_mask);
-    vkCmdSetAlphaToCoverageEnableEXT_(cmd, VK_FALSE);
-    vkCmdSetAlphaToOneEnableEXT_(cmd, VK_FALSE);
-    vkCmdSetCullMode(cmd, VK_CULL_MODE_NONE);
-    vkCmdSetFrontFace(cmd, VK_FRONT_FACE_CLOCKWISE);
-
-    vkCmdSetDepthTestEnable(cmd, VK_TRUE);
-    vkCmdSetDepthWriteEnable(cmd, VK_TRUE);
-    vkCmdSetDepthCompareOp(cmd, VK_COMPARE_OP_LESS_OR_EQUAL);
-
-    vkCmdSetDepthBiasEnable(cmd, VK_FALSE);
-    vkCmdSetStencilTestEnable(cmd, VK_FALSE);
-    vkCmdSetPrimitiveTopology(cmd, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    vkCmdSetPrimitiveRestartEnable(cmd, VK_FALSE);
-    VkBool32 blend_enable = VK_FALSE;
-    vkCmdSetColorBlendEnableEXT_(cmd, 0, 1, &blend_enable);
-    VkColorComponentFlags write_mask =
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    vkCmdSetColorWriteMaskEXT_(cmd, 0, 1, &write_mask);
-    VkColorBlendEquationEXT blend_eq = {
-        VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO, VK_BLEND_OP_ADD,
-        VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO, VK_BLEND_OP_ADD,
-    };
-    vkCmdSetColorBlendEquationEXT_(cmd, 0, 1, &blend_eq);
-    vkCmdSetLogicOpEnableEXT_(cmd, VK_FALSE);
-
-    vkCmdDrawIndexed(cmd, mesh->indices_count, 1, 0, 0, 0);
-
-    vkCmdEndRendering(cmd);
 
     return enif_make_atom(env, "ok");
 }

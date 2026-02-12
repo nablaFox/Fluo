@@ -60,7 +60,7 @@ static ErlNifFunc nif_funcs[] = {
     {"create_mesh", 2, nif_create_mesh},
     {"load_mesh_from_obj", 1, nif_load_mesh_from_obj},
     {"create_renderer", 3, nif_create_renderer},
-    {"start_rendering", 0, nif_start_rendering},
+    {"start_rendering", 2, nif_start_rendering},
     {"draw_mesh", 5, nif_draw_mesh},
     {"end_rendering", 0, nif_end_rendering},
     {"swap_buffers", 2, nif_swap_buffers},

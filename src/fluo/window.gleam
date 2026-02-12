@@ -4,7 +4,6 @@ import fluo/image.{
 import fluo/mesh.{type Mesh}
 import fluo/render.{type Renderer, draw, end_rendering, start_rendering}
 import gleam/dynamic.{type Dynamic}
-import gleam/option.{Some}
 
 pub opaque type Window {
   Window(
@@ -154,8 +153,6 @@ pub fn loop(
   case window_should_close(window) {
     True -> Nil
     False -> {
-      start_rendering()
-
       let delta = delta(window)
 
       let keys_down = keys_down(window)
@@ -174,10 +171,10 @@ pub fn loop(
       }
 
       let draw = fn(renderer, mesh, params) {
-        let color = Some(window.color)
-        let depth = Some(window.depth)
+        let viewport = #(0, 0, window.width, window.height)
+        let scissor = #(0, 0, window.width, window.height)
 
-        draw(renderer, mesh, params, color, depth)
+        draw(renderer, mesh, params, scissor:, viewport:)
       }
 
       let ctx =
@@ -196,6 +193,8 @@ pub fn loop(
           capture_mouse,
           release_mouse,
         )
+
+      start_rendering(window.color, window.depth)
 
       let state = callback(ctx, state)
 

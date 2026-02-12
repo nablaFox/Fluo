@@ -18,6 +18,15 @@ static int get_bool_term(ErlNifEnv* env, ERL_NIF_TERM t, uint32_t* out01) {
     return 0;
 }
 
+static int get_i32_term(ErlNifEnv* env, ERL_NIF_TERM t, int32_t* out) {
+    int i = 0;
+    if (enif_get_int(env, t, &i)) {
+        *out = (int32_t)i;
+        return 1;
+    }
+    return 0;
+}
+
 static int get_f32_term(ErlNifEnv* env, ERL_NIF_TERM t, float* out) {
     double d = 0.0;
     if (!enif_get_double(env, t, &d)) return 0;
@@ -257,6 +266,60 @@ int pack_std140_params_tuple(ErlNifEnv* env, ERL_NIF_TERM params_tuple,
     }
 
     if (off > blob_size) return 0;
+
+    return 1;
+}
+
+int get_viewport_from_term(ErlNifEnv* env, ERL_NIF_TERM term,
+                           VkViewport* out_vp) {
+    if (!out_vp) return 0;
+
+    const ERL_NIF_TERM* elems = NULL;
+    int arity = 0;
+
+    if (!enif_get_tuple(env, term, &arity, &elems) || arity != 4) return 0;
+
+    int32_t x, y;
+    uint32_t w, h;
+
+    if (!get_i32_term(env, elems[0], &x)) return 0;
+    if (!get_i32_term(env, elems[1], &y)) return 0;
+    if (!get_u32_term(env, elems[2], &w)) return 0;
+    if (!get_u32_term(env, elems[3], &h)) return 0;
+
+    *out_vp = (VkViewport){
+        .x = (float)x,
+        .y = (float)y,
+        .width = (float)w,
+        .height = (float)h,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+
+    return 1;
+}
+
+int get_scissor_from_term(ErlNifEnv* env, ERL_NIF_TERM term,
+                          VkRect2D* out_scissor) {
+    if (!out_scissor) return 0;
+
+    const ERL_NIF_TERM* elems = NULL;
+    int arity = 0;
+
+    if (!enif_get_tuple(env, term, &arity, &elems) || arity != 4) return 0;
+
+    int32_t x, y;
+    uint32_t w, h;
+
+    if (!get_i32_term(env, elems[0], &x)) return 0;
+    if (!get_i32_term(env, elems[1], &y)) return 0;
+    if (!get_u32_term(env, elems[2], &w)) return 0;
+    if (!get_u32_term(env, elems[3], &h)) return 0;
+
+    *out_scissor = (VkRect2D){
+        .offset = {x, y},
+        .extent = {w, h},
+    };
 
     return 1;
 }
