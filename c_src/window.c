@@ -167,7 +167,7 @@ static VkSurfaceFormatKHR choose_surface_format(VkSurfaceKHR surface) {
 
     VkSurfaceFormatKHR chosen = formats[0];
     for (uint32_t i = 0; i < count; i++) {
-        if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB &&
+        if (formats[i].format == FLUO_SURFACE_FORMAT &&
             formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             chosen = formats[i];
             break;
@@ -191,11 +191,11 @@ static VkPresentModeKHR choose_present_mode(VkSurfaceKHR surface) {
     vkGetPhysicalDeviceSurfacePresentModesKHR(g_device.physical_device, surface,
                                               &count, modes);
 
-    VkPresentModeKHR chosen = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+    VkPresentModeKHR chosen = VK_PRESENT_MODE_FIFO_KHR;
 
     for (uint32_t i = 0; i < count; i++) {
-        if (modes[i] == VK_PRESENT_MODE_FIFO_RELAXED_KHR) {
-            chosen = VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+        if (modes[i] == FLUO_PRESENT_MODE) {
+            chosen = FLUO_PRESENT_MODE;
             break;
         }
     }
@@ -512,25 +512,15 @@ ERL_NIF_TERM nif_window_should_close(ErlNifEnv* env, int argc,
     if (argc != 1) return enif_make_badarg(env);
 
     window_res_t* res = get_window_from_term(env, argv[0]);
-    if (!res) return enif_make_badarg(env);
-
-    int should_close = glfwWindowShouldClose(res->handle);
-
-    return should_close ? enif_make_atom(env, "true")
-                        : enif_make_atom(env, "false");
-}
-
-ERL_NIF_TERM nif_window_poll_events(ErlNifEnv* env, int argc,
-                                    const ERL_NIF_TERM argv[]) {
-    if (argc != 1) return enif_make_badarg(env);
-
-    window_res_t* res = get_window_from_term(env, argv[0]);
 
     if (!res) return enif_make_badarg(env);
 
     glfwPollEvents();
 
-    return enif_make_atom(env, "ok");
+    int should_close = glfwWindowShouldClose(res->handle);
+
+    return should_close ? enif_make_atom(env, "true")
+                        : enif_make_atom(env, "false");
 }
 
 ERL_NIF_TERM nif_window_keys_down(ErlNifEnv* env, int argc,

@@ -5,6 +5,10 @@
 #include <GLFW/glfw3.h>
 #include "image.h"
 
+#define FLUO_PRESENT_MODE VK_PRESENT_MODE_FIFO_RELAXED_KHR
+
+#define FLUO_SURFACE_FORMAT VK_FORMAT_B8G8R8A8_SRGB
+
 typedef struct {
     GLFWwindow* handle;
     VkSurfaceKHR surface;
@@ -37,8 +41,6 @@ int nif_init_window_res(ErlNifEnv* env);
 ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM nif_window_should_close(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
-
-ERL_NIF_TERM nif_window_poll_events(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM nif_window_keys_down(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 

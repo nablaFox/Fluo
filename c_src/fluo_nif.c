@@ -51,7 +51,6 @@ static void unload(ErlNifEnv* env, void* priv) {
 static ErlNifFunc nif_funcs[] = {
     {"create_window", 3, nif_create_window},
     {"window_should_close", 1, nif_window_should_close},
-    {"window_poll_events", 1, nif_window_poll_events},
     {"window_keys_down", 1, nif_window_keys_down},
     {"window_mouse_pos", 1, nif_window_mouse_pos},
     {"window_mouse_delta", 1, nif_window_mouse_delta},

@@ -71,9 +71,6 @@ fn create_window_raw(title: String, width: Int, height: Int) -> Dynamic
 @external(erlang, "fluo_nif", "window_should_close")
 pub fn window_should_close(window: Window) -> Bool
 
-@external(erlang, "fluo_nif", "window_poll_events")
-pub fn poll_events(window: Window) -> Nil
-
 @external(erlang, "fluo_nif", "window_keys_down")
 pub fn keys_down(window: Window) -> List(Key)
 
@@ -158,8 +155,6 @@ pub fn loop(
     True -> Nil
     False -> {
       start_rendering()
-
-      poll_events(window)
 
       let delta = delta(window)
 

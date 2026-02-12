@@ -5,6 +5,16 @@
 
 #include "vk_mem_alloc.h"
 
+#define FLUO_COLOR_FORMAT VK_FORMAT_R8G8B8A8_UNORM
+
+#define FLUO_DEPTH_FORMAT VK_FORMAT_D32_SFLOAT
+
+#define FLUO_COLOR_IMAGE_USAGE \
+    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+
+#define FLUO_DEPTH_IMAGE_USAGE \
+    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT
+
 typedef struct {
     VkImage image;
     VkImageView view;
@@ -16,7 +26,6 @@ typedef struct {
     VkExtent2D extent;
 } image_res_t;
 
-// just an image with color format
 int create_color_image(image_res_t* out,
                        VkImageLayout optimal_layout,
                        uint32_t width,
@@ -24,7 +33,6 @@ int create_color_image(image_res_t* out,
                        VkImageUsageFlags usage,
                        VkMemoryPropertyFlags memory_properties);
 
-// just an image with depth format
 int create_depth_image(image_res_t* out,
                        VkImageLayout optimal_layout,
                        uint32_t width,

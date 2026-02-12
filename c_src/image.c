@@ -234,17 +234,15 @@ int create_image(image_res_t* out, uint32_t width, uint32_t height,
 int create_color_image(image_res_t* out, VkImageLayout optimal_layout,
                        uint32_t width, uint32_t height, VkImageUsageFlags usage,
                        VkMemoryPropertyFlags memory_properties) {
-    return create_image(out, width, height, optimal_layout,
-                        VK_FORMAT_R16G16B16A16_SFLOAT, usage,
-                        VK_IMAGE_ASPECT_COLOR_BIT, memory_properties);
+    return create_image(out, width, height, optimal_layout, FLUO_COLOR_FORMAT,
+                        usage, VK_IMAGE_ASPECT_COLOR_BIT, memory_properties);
 }
 
 int create_depth_image(image_res_t* out, VkImageLayout optimal_layout,
                        uint32_t width, uint32_t height, VkImageUsageFlags usage,
                        VkMemoryPropertyFlags memory_properties) {
-    return create_image(out, width, height, optimal_layout,
-                        VK_FORMAT_D32_SFLOAT, usage, VK_IMAGE_ASPECT_DEPTH_BIT,
-                        memory_properties);
+    return create_image(out, width, height, optimal_layout, FLUO_DEPTH_FORMAT,
+                        usage, VK_IMAGE_ASPECT_DEPTH_BIT, memory_properties);
 }
 
 void destroy_gpu_image(image_res_t* img) {
@@ -411,13 +409,9 @@ ERL_NIF_TERM nif_create_depth_image(ErlNifEnv* env, int argc,
 
     *img = (image_res_t){0};
 
-    VkImageUsageFlags usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                              VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                              VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
     if (!create_depth_image(img,
                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                            width, height, usage, 0)) {
+                            width, height, FLUO_DEPTH_IMAGE_USAGE, 0)) {
         enif_release_resource(img);
         return enif_make_atom(env, "error");
     }
@@ -445,12 +439,8 @@ ERL_NIF_TERM nif_create_color_image(ErlNifEnv* env, int argc,
 
     *img = (image_res_t){0};
 
-    VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                              VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                              VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
     if (!create_color_image(img, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                            width, height, usage, 0)) {
+                            width, height, FLUO_COLOR_IMAGE_USAGE, 0)) {
         enif_release_resource(img);
         return enif_make_atom(env, "error");
     }
