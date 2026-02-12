@@ -3,11 +3,17 @@ LIB_NAME := libfluo_nif
 SO := $(APP_PRIV_DIR)/$(LIB_NAME).so
 
 CXX := g++
-CXXFLAGS := -fPIC -Wall -DDEBUG
+CXXFLAGS := -fPIC -Wall
 LDFLAGS := -shared
 LDLIBS := -lvulkan -lglfw
 
 INCLUDES := -I./erl_nif -I./vendor
+
+ifdef DEBUG
+CXXFLAGS += -DDEBUG -g -O0
+else
+CXXFLAGS += -O3
+endif
 
 C_SRCS := \
   vendor/spirv_reflect.c \
@@ -16,6 +22,7 @@ C_SRCS := \
   image.c \
   rendering.c \
   utils.c \
+  shaders.c \
   renderer.c \
   mesh.c \
   buffer.c \

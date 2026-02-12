@@ -2,3 +2,4 @@
 - pool allocator for meshes
 - cache shader modules
 - better error handling and print messages
+- shader compilation

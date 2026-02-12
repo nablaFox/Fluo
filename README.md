@@ -18,7 +18,7 @@ pub fn main() {
 
   let triangle = mesh.load_mesh("triangle.obj")
 
-  let renderer = render.create_renderer(vert: "vert.spv", frag: "frag.spv")
+  let renderer = render.create_renderer(Nil, vert: "shader.vert", frag: "shader.frag")
 
   use ctx, alpha <- window.loop(window, 0.0)
 
@@ -36,35 +36,24 @@ pub fn main() {
 #### Vertex gpu shader
 
 ```glsl
-#version 450
-
-#define VERTEX_SHADER
-#include "fluo.glsl"
-
 layout(location = 0) out vec2 frag_uv;
 
 void main() {
-    gl_Position = model * vec4(in_position, 1.0);
-
-    frag_uv = in_uv;
+    gl_Position = vec4(in_position, 1.0);
 }
 ```
 
 #### Fragment gpu shader
 
 ```glsl
-#version 450
-
-#include "fluo.glsl"
-
 layout(location = 0) out vec4 out_color;
 
-DEF_MATERIAL({
+DEF_PARAMS({
     vec4 color;
 });
 
 void main() {
-    out_color = vec4(MATERIAL.color.xyz * MATERIAL.color.w, 1.0);
+    out_color = vec4(PARAMS.color.xyz * PARAMS.color.w, 1.0);
 }
 ```
 

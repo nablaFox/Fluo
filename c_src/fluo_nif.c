@@ -2,6 +2,7 @@
 #include "mesh.h"
 #include "renderer.h"
 #include "rendering.h"
+#include "shaders.h"
 #include "texture.h"
 #include "window.h"
 

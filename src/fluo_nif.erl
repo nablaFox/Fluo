@@ -51,14 +51,29 @@
 -on_load(init/0).
 
 init() ->
-    PrivDir =
-        case code:priv_dir(fluo_nif) of
-            {error, bad_name} ->
-                filename:join([filename:dirname(code:which(?MODULE)), "..", "priv"]);
-            Dir ->
-                Dir
-        end,
-    erlang:load_nif(filename:join(PrivDir, "libfluo_nif"), 0).
+  PrivDir = priv_dir(),
+  case fluo_shaders:compile_shaders(PrivDir) of
+    ok ->
+      case erlang:load_nif(filename:join(PrivDir, "libfluo_nif"), 0) of
+        ok -> ok;
+        {error, _}=Err ->
+          report(init_failed, Err),
+          Err
+      end;
+    {error, _}=Err ->
+      report(init_failed, Err),
+      Err
+  end.
+
+priv_dir() ->
+    case code:priv_dir(fluo_nif) of
+        {error, bad_name} -> filename:join([filename:dirname(code:which(?MODULE)), "..", "priv"]);
+        Dir -> Dir
+    end.
+
+report(Tag, Term) ->
+  io:format(standard_error, "[~p] ~p~n", [Tag, Term]),
+  ok.
 
 create_window(_, _, _) -> erlang:nif_error(not_loaded).
 window_should_close(_) -> erlang:nif_error(not_loaded).

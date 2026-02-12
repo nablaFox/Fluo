@@ -8,6 +8,7 @@
 
 #include "device.h"
 #include "params.h"
+#include "shaders.h"
 #include "spirv_reflect.h"
 #include "texture.h"
 #include "utils.h"
@@ -135,36 +136,6 @@ static int create_and_bind_ubo(GpuBuffer* out_buf, uint32_t* out_slot,
 
     *out_slot = slot;
     return 1;
-}
-
-static uint8_t* read_shader(const char* path, size_t* size) {
-    const char* prefix = "shaders/";
-    const size_t plen = strlen(prefix);
-    const size_t path_len = strlen(path);
-
-    char* full = (char*)malloc(plen + path_len + 1);
-    assert(full && "failed to allocate full shader path");
-
-    memcpy(full, prefix, plen);
-    memcpy(full + plen, path, path_len + 1);
-
-    FILE* f = fopen(full, "rb");
-    free(full);
-
-    assert(f && "failed to open shader file");
-
-    fseek(f, 0, SEEK_END);
-    *size = (size_t)ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    uint8_t* data = (uint8_t*)malloc(*size);
-    assert(data && "failed to malloc shader file buffer");
-
-    size_t n = fread(data, 1, *size, f);
-    assert(n == *size && "failed to read full shader file");
-
-    fclose(f);
-    return data;
 }
 
 static void renderer_res_dtor(ErlNifEnv* env, void* obj) {

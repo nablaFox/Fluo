@@ -1,3 +1,4 @@
+#version 450
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_nonuniform_qualifier : require
 
@@ -24,10 +25,10 @@ layout(push_constant) uniform constants {
 
 layout(set = 0, binding = TEXTURE_BINDING) uniform sampler2D uTextures[];
 
+#define TEXTURE(idx, uv) texture(uTextures[nonuniformEXT(idx)], uv)
+
 #ifdef VERTEX_SHADER
 layout(location = 0) in vec3 in_position;
 layout(location = 1) in vec3 in_normal;
 layout(location = 2) in vec2 in_uv;
 #endif
-
-#define TEXTURE(idx, uv) texture(uTextures[nonuniformEXT(idx)], uv)
