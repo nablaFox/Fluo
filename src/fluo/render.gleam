@@ -2,6 +2,7 @@ import fluo/image.{type ColorImage, type DepthImage}
 import fluo/mesh.{type Mesh}
 import gleam/dynamic.{type Dynamic}
 import gleam/option.{type Option}
+import gleam/string
 
 pub opaque type Renderer(material) {
   Renderer(
@@ -20,13 +21,18 @@ fn create_renderer_raw(
 ) -> Dynamic
 
 pub fn create_renderer(
-  material: material,
   vert vert: String,
   frag frag: String,
+  material mat: material,
 ) -> Renderer(material) {
-  let handle = create_renderer_raw(material, vert, frag)
+  let assert True = string.ends_with(vert, ".vert")
+    as "Vertex shader file must end with .vert"
+  let assert True = string.ends_with(frag, ".frag")
+    as "Fragment shader file must end with .frag"
 
-  Renderer(material, vert, frag, handle)
+  let handle = create_renderer_raw(mat, vert, frag)
+
+  Renderer(mat, vert, frag, handle)
 }
 
 @external(erlang, "fluo_nif", "start_rendering")
@@ -36,7 +42,7 @@ pub fn start_rendering() -> Nil
 pub fn draw(
   renderer: Renderer(material),
   mesh: Mesh,
-  params: params,
+  params params: params,
   color color: Option(ColorImage),
   depth depth: Option(DepthImage),
 ) -> Nil

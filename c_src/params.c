@@ -241,6 +241,11 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
 int pack_std140_params_tuple(ErlNifEnv* env, ERL_NIF_TERM params_tuple,
                              uint8_t* blob, size_t blob_size) {
     const ERL_NIF_TERM* elems = NULL;
+
+    if (enif_is_identical(params_tuple, enif_make_atom(env, "nil"))) {
+        return 1;
+    }
+
     int arity = 0;
     if (!enif_get_tuple(env, params_tuple, &arity, &elems)) return 0;
 

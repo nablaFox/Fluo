@@ -10,9 +10,14 @@ pub fn main() {
 
   let texture = texture.load_texture("assets/brick.jpeg")
 
-  let renderer = render.create_renderer(vert: "vert.spv", frag: "texture.spv")
+  let renderer =
+    render.create_renderer(
+      vert: "shader.vert",
+      frag: "texture.frag",
+      material: #(texture),
+    )
 
   use ctx, _ <- window.loop(window, Nil)
 
-  ctx.draw(renderer, suzanne, #(texture))
+  ctx.draw(renderer, suzanne, Nil)
 }

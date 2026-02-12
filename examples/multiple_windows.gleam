@@ -8,9 +8,9 @@ pub fn main() {
   let window1 = create_window("Fluo Window 1", width: 800, height: 600)
   let window2 = create_window("Fluo Window 2", width: 600, height: 800)
 
-  let triangle = mesh.load_obj("assets/triangle.obj")
+  let triangle = mesh.load_obj("assets/suzanne.obj")
 
-  let renderer = create_renderer(vert: "vert.spv", frag: "frag.spv")
+  let renderer = create_renderer(Nil, vert: "shader.vert", frag: "shader.frag")
 
   game_loop(window1, window2, renderer, triangle, 0.0)
 }
@@ -18,7 +18,7 @@ pub fn main() {
 fn game_loop(
   window1: window.Window,
   window2: window.Window,
-  renderer: render.Renderer,
+  renderer: render.Renderer(material),
   mesh: mesh.Mesh,
   alpha: Float,
 ) {

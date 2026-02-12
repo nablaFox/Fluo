@@ -3,3 +3,4 @@
 - cache shader modules
 - better error handling and print messages
 - shader compilation
+- ensure passed material/params size matches shader expectations

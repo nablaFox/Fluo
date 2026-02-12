@@ -33,10 +33,19 @@ pub fn main() {
     |> texture.create_texture(width, height)
   }
 
-  let renderer = render.create_renderer(vert: "vert.spv", frag: "texture.spv")
+  let renderer =
+    render.create_renderer(
+      vert: "shader.vert",
+      frag: "texture.frag",
+      material: #(texture),
+    )
 
   let texture_renderer =
-    render.create_renderer(vert: "vert.spv", frag: "frag.spv")
+    render.create_renderer(
+      vert: "shader.vert",
+      frag: "shader.frag",
+      material: Nil,
+    )
 
   window.loop(window, Nil, fn(ctx, _) {
     case ctx.keys_down {
@@ -52,6 +61,6 @@ pub fn main() {
       _ -> Nil
     }
 
-    ctx.draw(renderer, triangle, #(texture))
+    ctx.draw(renderer, triangle, Nil)
   })
 }

@@ -37,9 +37,14 @@ pub fn main() {
     |> texture.create_texture(width, height)
   }
 
-  let renderer = render.create_renderer(vert: "vert.spv", frag: "texture.spv")
+  let renderer =
+    render.create_renderer(
+      vert: "shader.vert",
+      frag: "texture.frag",
+      material: #(texture),
+    )
 
   use ctx, _ <- window.loop(window, Nil)
 
-  ctx.draw(renderer, triangle, #(texture))
+  ctx.draw(renderer, triangle, Nil)
 }

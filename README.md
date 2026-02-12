@@ -16,9 +16,14 @@ import fluo/window
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let triangle = mesh.load_mesh("triangle.obj")
+  let triangle = mesh.load_obj("triangle.obj")
 
-  let renderer = render.create_renderer(Nil, vert: "shader.vert", frag: "shader.frag")
+  let renderer =
+    render.create_renderer(
+      vert: "shader.vert",
+      frag: "shader.frag",
+      material: Nil,
+    )
 
   use ctx, alpha <- window.loop(window, 0.0)
 

@@ -298,8 +298,9 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
         for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
             if (!create_and_bind_ubo(&res->params_ubo[i], &res->params_index[i],
                                      (VkDeviceSize)params_ubo_size,
-                                     PARAMS_BINDING, alloc_params_index))
+                                     PARAMS_BINDING, alloc_params_index)) {
                 goto fail;
+            }
         }
     }
 
@@ -310,8 +311,9 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
     if (material_ubo_size > 0) {
         if (!create_and_bind_ubo(&res->material_ubo, &res->material_index,
                                  (VkDeviceSize)material_ubo_size,
-                                 MATERIAL_BINDING, alloc_material_index))
+                                 MATERIAL_BINDING, alloc_material_index)) {
             goto fail;
+        }
 
         ubo_blob = (uint8_t*)enif_alloc(material_ubo_size);
 
