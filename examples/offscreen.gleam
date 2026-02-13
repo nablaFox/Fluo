@@ -1,12 +1,11 @@
-import fluo/color.{red}
 import fluo/image
 import fluo/mesh
-import fluo/render
+import fluo/render.{type Renderer}
 
 pub fn main() {
   let triangle = mesh.load_obj("assets/suzanne.obj")
 
-  let renderer =
+  let renderer: Renderer(_, _, Float) =
     render.create_renderer(
       vert: "shader.vert",
       frag: "shader.frag",
@@ -15,17 +14,18 @@ pub fn main() {
 
   let color = image.create_color_image(500, 500)
 
-  render.start_color_rendering(color)
+  let frame = render.start_color_rendering(color)
 
-  render.draw(
-    renderer,
-    triangle,
-    params: #(red.r, red.g, red.b, 1.0),
-    scissor: #(0, 0, color.width, color.height),
-    viewport: #(0, 0, color.width, color.height),
-  )
+  let draw = render.create_drawer(frame, renderer, Nil)
 
-  render.end_rendering()
+  draw(triangle, 1.0, #(0, 0, color.width, color.height), #(
+    0,
+    0,
+    color.width,
+    color.height,
+  ))
+
+  render.end_rendering(frame)
 
   image.save_color_image(color, "output.png")
 }

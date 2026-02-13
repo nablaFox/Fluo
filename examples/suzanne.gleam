@@ -14,10 +14,10 @@ pub fn main() {
     render.create_renderer(
       vert: "shader.vert",
       frag: "texture.frag",
-      material: #(texture),
+      material: texture,
     )
 
   use ctx, _ <- window.loop(window, Nil)
 
-  ctx.draw(renderer, suzanne, Nil)
+  suzanne |> ctx.draw(renderer, Nil)(Nil)
 }

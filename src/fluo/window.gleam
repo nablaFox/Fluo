@@ -2,17 +2,23 @@ import fluo/image.{
   type ColorImage, type DepthImage, create_color_image, create_depth_image,
 }
 import fluo/mesh.{type Mesh}
-import fluo/render.{type Renderer, draw, end_rendering, start_rendering}
+import fluo/render.{
+  type Frame, type Renderer, create_drawer, end_rendering, start_rendering,
+}
 import gleam/dynamic.{type Dynamic}
 
-pub opaque type Window {
+pub opaque type WindowHandle {
+  WindowHandle(Dynamic)
+}
+
+pub type Window {
   Window(
     width: Int,
     height: Int,
     title: String,
     color: ColorImage,
     depth: DepthImage,
-    handle: Dynamic,
+    handle: WindowHandle,
   )
 }
 
@@ -100,6 +106,8 @@ pub fn create_window(
   let color = create_color_image(width, height)
   let depth = create_depth_image(width, height)
 
+  let handle = WindowHandle(handle)
+
   Window(width, height, title, color, depth, handle)
 }
 
@@ -127,9 +135,23 @@ pub fn depth(window: Window) -> DepthImage {
   window.depth
 }
 
-pub type Context(params, material) {
+pub fn drawer(
+  ctx: Context,
+  renderer: Renderer(material, frame_params, draw_params),
+  frame_params: frame_params,
+) -> fn(Mesh, draw_params) -> Nil {
+  fn(mesh, draw_params) {
+    let viewport = #(0, 0, ctx.width, ctx.height)
+    let scissor = #(0, 0, ctx.width, ctx.height)
+
+    let draw = create_drawer(ctx.frame, renderer, frame_params)
+
+    draw(mesh, draw_params, scissor, viewport)
+  }
+}
+
+pub type Context {
   Context(
-    draw: fn(Renderer(material), Mesh, params) -> Nil,
     delta: Float,
     fps: Float,
     keys_down: List(Key),
@@ -140,19 +162,18 @@ pub type Context(params, material) {
     color: ColorImage,
     depth: DepthImage,
     title: String,
+    frame: Frame,
     capture_mouse: fn() -> Nil,
     release_mouse: fn() -> Nil,
   )
 }
 
-pub fn loop(
-  window: Window,
-  state: state,
-  callback: fn(Context(params, material), state) -> state,
-) {
+pub fn loop(window: Window, state: state, callback: fn(Context, state) -> state) {
   case window_should_close(window) {
     True -> Nil
     False -> {
+      let frame = start_rendering(window.color, window.depth)
+
       let delta = delta(window)
 
       let keys_down = keys_down(window)
@@ -170,16 +191,8 @@ pub fn loop(
         _ -> 1.0 /. delta
       }
 
-      let draw = fn(renderer, mesh, params) {
-        let viewport = #(0, 0, window.width, window.height)
-        let scissor = #(0, 0, window.width, window.height)
-
-        draw(renderer, mesh, params, scissor:, viewport:)
-      }
-
       let ctx =
         Context(
-          draw,
           delta,
           fps,
           keys_down,
@@ -190,15 +203,14 @@ pub fn loop(
           window.color,
           window.depth,
           window.title,
+          frame,
           capture_mouse,
           release_mouse,
         )
 
-      start_rendering(window.color, window.depth)
-
       let state = callback(ctx, state)
 
-      end_rendering()
+      end_rendering(frame)
 
       present(window)
 

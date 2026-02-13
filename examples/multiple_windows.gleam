@@ -1,4 +1,3 @@
-import fluo/color.{red}
 import fluo/mesh
 import fluo/render.{create_renderer}
 import fluo/window.{create_window}
@@ -9,7 +8,8 @@ pub fn main() {
 
   let triangle = mesh.load_obj("assets/suzanne.obj")
 
-  let renderer = create_renderer(Nil, vert: "shader.vert", frag: "shader.frag")
+  let renderer =
+    create_renderer(material: Nil, vert: "shader.vert", frag: "shader.frag")
 
   game_loop(window1, window2, renderer, triangle, 0.0)
 }
@@ -17,7 +17,7 @@ pub fn main() {
 fn game_loop(
   window1: window.Window,
   window2: window.Window,
-  renderer: render.Renderer(material),
+  renderer: render.Renderer(material, Nil, Float),
   mesh: mesh.Mesh,
   alpha: Float,
 ) {
@@ -28,17 +28,13 @@ fn game_loop(
       let width = window.width(window1)
       let height = window.height(window1)
 
-      render.start_color_rendering(color)
+      let frame = render.start_color_rendering(color)
 
-      render.draw(
-        renderer,
-        mesh,
-        params: #(red.r, red.g, red.b, alpha),
-        viewport: #(0, 0, width, height),
-        scissor: #(0, 0, width, height),
-      )
+      let draw = render.create_drawer(frame, renderer, Nil)
 
-      render.end_rendering()
+      draw(mesh, alpha, #(0, 0, width, height), #(0, 0, width, height))
+
+      render.end_rendering(frame)
 
       window.present(window1)
       window.swap(window2, color)

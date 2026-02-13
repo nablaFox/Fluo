@@ -1,7 +1,7 @@
 import fluo/mesh
 import fluo/render
 import fluo/texture
-import fluo/window
+import fluo/window.{drawer}
 import gleam/bit_array
 import gleam/int
 import gleam/list
@@ -16,17 +16,15 @@ pub fn main() {
     let height = 512
     let tile = 64
 
-    list.range(0, width * height - 1)
+    int.range(0, width * height - 1, [], list.prepend)
     |> list.map(fn(i) {
       let x = i % width
-      let assert Ok(y) = int.divide(i, width)
 
+      let assert Ok(y) = int.divide(i, width)
       let assert Ok(cx) = int.divide(x, tile)
       let assert Ok(cy) = int.divide(y, tile)
 
-      let is_a = { cx + cy } % 2 == 0
-
-      let #(r, g, b, a) = case is_a {
+      let #(r, g, b, a) = case { cx + cy } % 2 == 0 {
         True -> #(255, 105, 180, 255)
         False -> #(255, 0, 0, 255)
       }
@@ -41,10 +39,10 @@ pub fn main() {
     render.create_renderer(
       vert: "shader.vert",
       frag: "texture.frag",
-      material: #(texture),
+      material: texture,
     )
 
   use ctx, _ <- window.loop(window, Nil)
 
-  ctx.draw(renderer, triangle, Nil)
+  triangle |> drawer(ctx, renderer, Nil)(Nil)
 }

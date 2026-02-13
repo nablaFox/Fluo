@@ -1,9 +1,7 @@
-layout(location = 0) out vec4 out_color;
-
-DEF_PARAMS({
-    vec4 color;
+DEF_DRAW_PARAMS({
+    float alpha;
 });
 
-void main() {
-    out_color = vec4(MATERIAL.color.xyz * MATERIAL.color.w, 1.0);
+void main() { 
+    out_color = vec4(vec3(1.0, 0.0, 0.0) * PARAMS.alpha, 1.0);
 }

@@ -1,11 +1,15 @@
 import gleam/dynamic.{type Dynamic}
 
+pub opaque type ImageHandle {
+  ImageHandle(handle: Dynamic)
+}
+
 pub type ColorImage {
-  ColorImage(width: Int, height: Int, handle: Dynamic)
+  ColorImage(width: Int, height: Int, handle: ImageHandle)
 }
 
 pub type DepthImage {
-  DepthImage(width: Int, height: Int, handle: Dynamic)
+  DepthImage(width: Int, height: Int, handle: ImageHandle)
 }
 
 @external(erlang, "fluo_nif", "create_color_image")
@@ -21,21 +25,23 @@ fn read_image_raw(handle: Dynamic) -> BitArray
 pub fn save_color_image(image: ColorImage, path: String) -> Nil
 
 pub fn read_color(image: ColorImage) -> BitArray {
-  read_image_raw(image.handle)
+  read_image_raw(image.handle.handle)
 }
 
 pub fn read_depth(image: DepthImage) -> BitArray {
-  read_image_raw(image.handle)
+  read_image_raw(image.handle.handle)
 }
 
 pub fn create_color_image(width: Int, height: Int) -> ColorImage {
   let handle = create_color_image_raw(width, height)
+  let handle = ImageHandle(handle)
 
   ColorImage(width, height, handle)
 }
 
 pub fn create_depth_image(width: Int, height: Int) -> DepthImage {
   let handle = create_depth_image_raw(width, height)
+  let handle = ImageHandle(handle)
 
   DepthImage(width, height, handle)
 }

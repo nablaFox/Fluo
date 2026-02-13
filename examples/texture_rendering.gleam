@@ -1,11 +1,10 @@
-import fluo/color.{red}
 import fluo/mesh.{Vec2, Vec3, Vertex}
 import fluo/render
 import fluo/texture
-import fluo/window
+import fluo/window.{drawer}
 import gleam/bit_array
+import gleam/int
 import gleam/list
-import gleam/option.{None, Some}
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
@@ -27,17 +26,17 @@ pub fn main() {
     let width = 512
     let height = 512
 
-    list.range(0, width * height - 1)
+    int.range(0, width * height - 1, [], list.prepend)
     |> list.map(fn(_) { <<0, 0, 0, 255>> })
     |> bit_array.concat
     |> texture.create_texture(width, height)
   }
 
-  let renderer =
+  let triangle_renderer =
     render.create_renderer(
       vert: "shader.vert",
       frag: "texture.frag",
-      material: #(texture),
+      material: texture,
     )
 
   let texture_renderer =
@@ -47,20 +46,14 @@ pub fn main() {
       material: Nil,
     )
 
-  window.loop(window, Nil, fn(ctx, _) {
-    case ctx.keys_down {
-      [window.Space] -> {
-        render.draw(
-          texture_renderer,
-          quad,
-          #(red.r, red.g, red.b, 1.0),
-          Some(texture.color(texture)),
-          None,
-        )
-      }
-      _ -> Nil
-    }
+  use ctx, _ <- window.loop(window, Nil)
 
-    ctx.draw(renderer, triangle, Nil)
-  })
+  case ctx.keys_down {
+    [window.Space] -> {
+      quad |> drawer(ctx, texture_renderer, Nil)(Nil)
+    }
+    _ -> Nil
+  }
+
+  triangle |> drawer(ctx, triangle_renderer, Nil)(1.0)
 }
