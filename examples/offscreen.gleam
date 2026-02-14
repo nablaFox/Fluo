@@ -14,19 +14,18 @@ pub fn main() {
 
   let color = image.create_color_image(500, 500)
 
-  let cmd = render.create_command()
-
-  let frame = cmd.create_color_frame(color)
-
   let viewport = #(0, 0, color.width, color.height)
   let scissor = #(0, 0, color.width, color.height)
 
-  triangle
-  |> render.create_drawer(frame, renderer, Nil)(1.0, viewport, scissor)
+  {
+    use cmd <- render.run_immediate()
 
-  cmd.end_frame(frame)
+    use frame <- render.render_color_frame(cmd, color)
 
-  cmd.submit()
+    triangle
+    |> render.create_drawer(frame, renderer, Nil)(1.0, viewport, scissor)
 
-  image.save_color_image(color, "output.png")
+    color
+  }
+  |> image.save_color_image("output.png")
 }

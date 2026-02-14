@@ -115,20 +115,17 @@ pub fn drawer(
   ctx: Context,
   renderer: Renderer(material, frame_params, draw_params),
   frame_params: frame_params,
-) -> fn(Mesh, draw_params) -> Context {
+) -> fn(Mesh, draw_params) -> Nil {
   fn(mesh, draw_params) {
     let viewport = #(0, 0, ctx.width, ctx.height)
     let scissor = #(0, 0, ctx.width, ctx.height)
 
-    let frame =
-      mesh
-      |> render.create_drawer(ctx.frame, renderer, frame_params)(
-        draw_params,
-        scissor,
-        viewport,
-      )
-
-    Context(..ctx, frame:)
+    mesh
+    |> render.create_drawer(ctx.frame, renderer, frame_params)(
+      draw_params,
+      scissor,
+      viewport,
+    )
   }
 }
 
@@ -150,14 +147,12 @@ pub type Context {
   )
 }
 
-pub fn loop(window: Window, state: state, callback: fn(Context, state) -> state) {
+pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
+  let cmd = render.create_command()
+
   case window_should_close(window) {
     True -> Nil
     False -> {
-      let cmd = render.create_command()
-
-      let frame = cmd.create_frame(window.color, window.depth)
-
       let delta = delta(window)
 
       let keys_down = keys_down(window)
@@ -175,28 +170,30 @@ pub fn loop(window: Window, state: state, callback: fn(Context, state) -> state)
         _ -> 1.0 /. delta
       }
 
-      let ctx =
-        Context(
-          delta,
-          fps,
-          keys_down,
-          mouse_pos,
-          mouse_delta,
-          window.width,
-          window.height,
-          window.color,
-          window.depth,
-          window.title,
-          frame,
-          capture_mouse,
-          release_mouse,
-        )
+      let state = {
+        use cmd <- render.run(cmd)
 
-      let state = callback(ctx, state)
+        use frame <- render.render_frame(cmd, window.color, window.depth)
 
-      cmd.end_frame(frame)
+        let ctx =
+          Context(
+            delta,
+            fps,
+            keys_down,
+            mouse_pos,
+            mouse_delta,
+            window.width,
+            window.height,
+            window.color,
+            window.depth,
+            window.title,
+            frame,
+            capture_mouse,
+            release_mouse,
+          )
 
-      cmd.submit()
+        callback(ctx, state)
+      }
 
       present(window)
 

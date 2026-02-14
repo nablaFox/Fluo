@@ -47,22 +47,19 @@ pub fn main() {
     )
 
   let render_texture = fn(alpha) {
-    let tex_cmd = render.create_command()
     let tex_viewport = #(0, 0, texture.color.width, texture.color.height)
     let tex_scissor = #(0, 0, texture.color.width, texture.color.height)
 
-    let tex_frame = tex_cmd.create_color_frame(texture.color)
+    use cmd <- render.run_immediate()
+
+    use frame <- render.render_color_frame(cmd, texture.color)
 
     quad
-    |> render.create_drawer(tex_frame, texture_renderer, Nil)(
+    |> render.create_drawer(frame, texture_renderer, Nil)(
       alpha,
       tex_viewport,
       tex_scissor,
     )
-
-    tex_cmd.end_frame(tex_frame)
-
-    tex_cmd.submit()
   }
 
   use ctx, _ <- window.loop(window, Nil)
@@ -74,6 +71,4 @@ pub fn main() {
   }
 
   triangle |> drawer(ctx, triangle_renderer, Nil)(Nil)
-
-  Nil
 }

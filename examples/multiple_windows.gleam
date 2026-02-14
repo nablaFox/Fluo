@@ -21,27 +21,26 @@ fn game_loop(
   mesh: mesh.Mesh,
   alpha: Float,
 ) {
+  let cmd = render.create_command()
+
+  let viewport = #(0, 0, window1.width, window1.height)
+  let scissor = #(0, 0, window1.width, window1.height)
+
   case window.window_should_close(window1) {
     True -> Nil
     False -> {
-      let color = window1.color
+      {
+        use cmd <- render.run(cmd)
 
-      let cmd = render.create_command()
+        use frame <- render.render_frame(cmd, window1.color, window1.depth)
 
-      let frame = cmd.create_color_frame(color)
-
-      let viewport = #(0, 0, window1.width, window1.height)
-      let scissor = #(0, 0, window1.width, window1.height)
-
-      mesh
-      |> render.create_drawer(frame, renderer, Nil)(alpha, viewport, scissor)
-
-      cmd.end_frame(frame)
-
-      cmd.submit()
+        mesh
+        |> render.create_drawer(frame, renderer, Nil)(alpha, viewport, scissor)
+      }
 
       window.present(window1)
-      window.swap(window2, color)
+
+      window.swap(window2, window1.color)
 
       game_loop(window1, window2, renderer, mesh, alpha +. 0.0001)
     }

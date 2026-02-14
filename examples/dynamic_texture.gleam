@@ -45,6 +45,4 @@ pub fn main() {
   use ctx, _ <- window.loop(window, Nil)
 
   triangle |> drawer(ctx, renderer, Nil)(Nil)
-
-  Nil
 }

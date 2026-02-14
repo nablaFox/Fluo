@@ -8,14 +8,6 @@ pub opaque type RendererHandle {
   RendererHandle(Dynamic)
 }
 
-pub opaque type CommandHandle {
-  CommandHandle(Dynamic)
-}
-
-pub opaque type Frame {
-  Frame(cmd: CommandHandle)
-}
-
 pub type Renderer(material, frame_params, draw_params) {
   Renderer(
     material: material,
@@ -25,15 +17,20 @@ pub type Renderer(material, frame_params, draw_params) {
   )
 }
 
-pub type Command {
-  Command(
-    create_color_frame: fn(ColorImage) -> Frame,
-    create_depth_frame: fn(DepthImage) -> Frame,
-    create_frame: fn(ColorImage, DepthImage) -> Frame,
-    end_frame: fn(Frame) -> Nil,
-    submit: fn() -> Nil,
-    handle: CommandHandle,
-  )
+pub opaque type Command {
+  Command(Dynamic)
+}
+
+pub opaque type ActiveCommand {
+  ActiveCommand(Dynamic)
+}
+
+pub opaque type RenderingCommand {
+  RenderingCommand(Dynamic)
+}
+
+pub opaque type Frame {
+  Frame(cmd: RenderingCommand)
 }
 
 pub type Viewport =
@@ -43,7 +40,7 @@ pub type Scissor =
   #(Int, Int, Int, Int)
 
 pub type Drawer(draw_params) =
-  fn(Mesh, draw_params, Viewport, Scissor) -> Frame
+  fn(Mesh, draw_params, Viewport, Scissor) -> Nil
 
 @external(erlang, "fluo_nif", "create_renderer")
 fn create_renderer_raw(
@@ -53,20 +50,23 @@ fn create_renderer_raw(
 ) -> Dynamic
 
 @external(erlang, "fluo_nif", "create_command_buffer")
-fn create_command_buffer() -> Dynamic
+fn create_command_raw() -> Dynamic
+
+@external(erlang, "fluo_nif", "start_command_recording")
+fn start_command_recording_raw(cmd: Command) -> Nil
 
 @external(erlang, "fluo_nif", "start_rendering")
-fn start_rendering(
-  cmd: CommandHandle,
+fn start_rendering_raw(
+  cmd: ActiveCommand,
   color: Option(ColorImage),
   depth: Option(DepthImage),
 ) -> Nil
 
 @external(erlang, "fluo_nif", "end_rendering")
-fn end_rendering(handle: CommandHandle) -> Nil
+fn end_rendering_raw(cmd: RenderingCommand) -> Nil
 
 @external(erlang, "fluo_nif", "submit_command_buffer")
-fn submit_command_buffer(handle: CommandHandle) -> Nil
+fn submit_command_buffer_raw(cmd: ActiveCommand) -> Nil
 
 @external(erlang, "fluo_nif", "set_frame_params")
 fn set_frame_params(
@@ -76,7 +76,7 @@ fn set_frame_params(
 
 @external(erlang, "fluo_nif", "draw_mesh")
 fn draw(
-  command: CommandHandle,
+  cmd: RenderingCommand,
   renderer: Renderer(material, frame_params, draw_params),
   mesh mesh: Mesh,
   params params: params,
@@ -101,38 +101,110 @@ pub fn create_renderer(
 }
 
 pub fn create_command() -> Command {
-  let handle = CommandHandle(create_command_buffer())
-
-  let create_color_frame = fn(color: ColorImage) -> Frame {
-    start_rendering(handle, Some(color), None)
-    Frame(handle)
-  }
-
-  let create_depth_frame = fn(depth: DepthImage) -> Frame {
-    start_rendering(handle, None, Some(depth))
-    Frame(handle)
-  }
-
-  let create_frame = fn(color: ColorImage, depth: DepthImage) -> Frame {
-    start_rendering(handle, Some(color), Some(depth))
-    Frame(handle)
-  }
-
-  let end_frame = fn(_frame: Frame) -> Nil { end_rendering(handle) }
-
-  let submit = fn() -> Nil { submit_command_buffer(handle) }
-
-  Command(
-    create_color_frame,
-    create_depth_frame,
-    create_frame,
-    end_frame,
-    submit,
-    handle,
-  )
+  Command(create_command_raw())
 }
 
-// RULE: should not be called twice per frame
+fn start_command_recording(cmd: Command) -> ActiveCommand {
+  start_command_recording_raw(cmd)
+
+  let Command(handle) = cmd
+
+  ActiveCommand(handle)
+}
+
+fn start_rendering(
+  cmd: ActiveCommand,
+  color: Option(ColorImage),
+  depth: Option(DepthImage),
+) -> RenderingCommand {
+  start_rendering_raw(cmd, color, depth)
+
+  let ActiveCommand(handle) = cmd
+
+  RenderingCommand(handle)
+}
+
+fn end_rendering(cmd: RenderingCommand) -> ActiveCommand {
+  end_rendering_raw(cmd)
+
+  let RenderingCommand(handle) = cmd
+
+  ActiveCommand(handle)
+}
+
+fn submit_command_buffer(cmd: ActiveCommand) -> Command {
+  submit_command_buffer_raw(cmd)
+
+  let ActiveCommand(handle) = cmd
+
+  Command(handle)
+}
+
+pub fn run(cmd: Command, callback: fn(ActiveCommand) -> a) {
+  let cmd = start_command_recording(cmd)
+
+  let state = callback(cmd)
+
+  submit_command_buffer(cmd)
+
+  state
+}
+
+pub fn run_immediate(callback: fn(ActiveCommand) -> a) {
+  let cmd = create_command()
+
+  let cmd = start_command_recording(cmd)
+
+  let state = callback(cmd)
+
+  submit_command_buffer(cmd)
+
+  state
+}
+
+pub fn render_frame(
+  cmd: ActiveCommand,
+  color: ColorImage,
+  depth: DepthImage,
+  callback: fn(Frame) -> a,
+) {
+  let cmd = start_rendering(cmd, Some(color), Some(depth))
+
+  let state = callback(Frame(cmd))
+
+  end_rendering(cmd)
+
+  state
+}
+
+pub fn render_color_frame(
+  cmd: ActiveCommand,
+  color: ColorImage,
+  callback: fn(Frame) -> a,
+) {
+  let cmd = start_rendering(cmd, Some(color), None)
+
+  let state = callback(Frame(cmd))
+
+  end_rendering(cmd)
+
+  state
+}
+
+pub fn render_depth_frame(
+  cmd: ActiveCommand,
+  depth: DepthImage,
+  callback: fn(Frame) -> a,
+) {
+  let cmd = start_rendering(cmd, None, Some(depth))
+
+  let state = callback(Frame(cmd))
+
+  end_rendering(cmd)
+
+  state
+}
+
 pub fn create_drawer(
   frame: Frame,
   renderer: Renderer(material, frame_params, draw_params),
@@ -147,6 +219,5 @@ pub fn create_drawer(
     viewport: #(Int, Int, Int, Int),
   ) {
     draw(frame.cmd, renderer, mesh, params, scissor, viewport)
-    frame
   }
 }
