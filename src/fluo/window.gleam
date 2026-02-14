@@ -1,4 +1,5 @@
 import fluo/image.{type ColorImage, type DepthImage}
+import fluo/key.{type Key}
 import fluo/mesh.{type Mesh}
 import fluo/render.{type Frame, type Renderer}
 import gleam/dynamic.{type Dynamic}
@@ -18,48 +19,27 @@ pub type Window {
   )
 }
 
-pub type Key {
-  KeyA
-  KeyB
-  KeyC
-  KeyD
-  KeyE
-  KeyF
-  KeyG
-  KeyH
-  KeyI
-  KeyJ
-  KeyK
-  KeyL
-  KeyM
-  KeyN
-  KeyO
-  KeyP
-  KeyQ
-  KeyR
-  KeyS
-  KeyT
-  KeyU
-  KeyV
-  KeyW
-  KeyX
-  KeyY
-  KeyZ
-  ArrowUp
-  ArrowDown
-  ArrowLeft
-  ArrowRight
-  Enter
-  Escape
-  Space
-  Backspace
-  Tab
-  LShift
-  RShift
-  LCtrl
-  RCtrl
-  LAlt
-  RAlt
+pub opaque type PrivateContext {
+  PrivateContext
+}
+
+pub type Context {
+  Context(
+    delta: Float,
+    fps: Float,
+    keys_down: List(Key),
+    mouse_pos: Position,
+    mouse_delta: Position,
+    width: Int,
+    height: Int,
+    color: ColorImage,
+    depth: DepthImage,
+    title: String,
+    frame: Frame,
+    capture_mouse: fn() -> Nil,
+    release_mouse: fn() -> Nil,
+    priv_: PrivateContext,
+  )
 }
 
 pub type Position {
@@ -146,24 +126,6 @@ pub fn draw(
   )
 }
 
-pub type Context {
-  Context(
-    delta: Float,
-    fps: Float,
-    keys_down: List(Key),
-    mouse_pos: Position,
-    mouse_delta: Position,
-    width: Int,
-    height: Int,
-    color: ColorImage,
-    depth: DepthImage,
-    title: String,
-    frame: Frame,
-    capture_mouse: fn() -> Nil,
-    release_mouse: fn() -> Nil,
-  )
-}
-
 pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
   let cmd = render.create_command()
 
@@ -207,6 +169,7 @@ pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
             frame,
             capture_mouse,
             release_mouse,
+            PrivateContext,
           )
 
         callback(ctx, state)

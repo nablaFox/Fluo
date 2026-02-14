@@ -8,6 +8,7 @@ Currently under development.
 #### Gleam cpu code
 
 ```gleam
+import fluo/key
 import fluo/mesh
 import fluo/render.{type Renderer}
 import fluo/window.{draw}
@@ -30,7 +31,7 @@ pub fn main() {
   use ctx, alpha <- window.loop(window, 0.0)
 
   let alpha = case ctx.keys_down {
-    [window.Space] -> alpha +. ctx.delta
+    [key.Space] -> alpha +. ctx.delta
     _ -> alpha
   }
 

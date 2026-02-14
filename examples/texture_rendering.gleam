@@ -1,3 +1,4 @@
+import fluo/key
 import fluo/mesh.{Vec2, Vec3, Vertex}
 import fluo/render.{type Renderer}
 import fluo/texture.{type Texture}
@@ -65,8 +66,8 @@ pub fn main() {
   use ctx, _ <- window.loop(window, Nil)
 
   case ctx.keys_down {
-    [window.KeyA] -> render_texture(0.5)
-    [window.KeyS] -> render_texture(1.0)
+    [key.A] -> render_texture(0.5)
+    [key.S] -> render_texture(1.0)
     _ -> Nil
   }
 
