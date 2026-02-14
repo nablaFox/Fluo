@@ -380,7 +380,7 @@ static void create_bindless_descriptors(void) {
             .stageFlags = VK_SHADER_STAGE_ALL,
         },
         {
-            .binding = PARAMS_BINDING,
+            .binding = FRAME_PARAMS_BINDING,
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             .descriptorCount = MAX_BINDLESS_RESOURCES,
             .stageFlags = VK_SHADER_STAGE_ALL,

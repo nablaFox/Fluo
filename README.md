@@ -16,7 +16,7 @@ import fluo/window.{draw}
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let triangle = mesh.load_obj("triangle.obj")
+  let triangle = mesh.load_obj("assets/triangle.obj")
 
   let renderer: Renderer(Nil, Float, Nil) =
     renderer.create_renderer(

@@ -20,12 +20,6 @@ typedef struct {
     image_res_t* swapchain_images;
     uint32_t swapchain_image_count;
 
-    VkSemaphore* image_available_sem;
-    VkSemaphore* finished_blitting_sem;
-    VkCommandPool blit_cmd_pool;
-    VkCommandBuffer* blit_cmds;
-    VkFence* blit_fences;
-
     double accum_dx, accum_dy;
     int has_last_cb;
     double last_cb_x, last_cb_y;
@@ -34,6 +28,9 @@ typedef struct {
 
     double last_time;
     int has_last_time;
+
+    VkCommandBuffer blit_cmd;
+    VkFence blit_fence;
 } window_res_t;
 
 int nif_init_window_res(ErlNifEnv* env);
@@ -53,6 +50,8 @@ ERL_NIF_TERM nif_window_delta_time(ErlNifEnv* env, int argc, const ERL_NIF_TERM 
 ERL_NIF_TERM nif_window_capture_mouse(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM nif_window_release_mouse(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 window_res_t* get_window_from_term(ErlNifEnv* env, ERL_NIF_TERM term);
 

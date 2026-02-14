@@ -9,6 +9,9 @@
 
 static ErlNifResourceType* TEXTURE_RES_TYPE = NULL;
 
+static ERL_NIF_TERM ATOM_TEXTURE;
+static ERL_NIF_TERM ATOM_TEXTURE_HANDLE;
+
 static atomic_uint_fast32_t g_next_texture_index = 0;
 
 static uint32_t alloc_texture_index(void) {
@@ -49,6 +52,9 @@ int nif_init_texture_res(ErlNifEnv* env) {
         env, "fluo_nif", "texture_res", texture_res_dtor,
         ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER, NULL);
 
+    ATOM_TEXTURE = enif_make_atom(env, "texture");
+    ATOM_TEXTURE_HANDLE = enif_make_atom(env, "texture_handle");
+
     if (!TEXTURE_RES_TYPE) return -1;
     return 0;
 }
@@ -60,20 +66,21 @@ texture_res_t* get_texture_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
 
     const ERL_NIF_TERM* elems = NULL;
     int arity = 0;
-
     if (enif_get_tuple(env, term, &arity, &elems)) {
-        if (arity != 3) return NULL;
-
-        if (!enif_is_atom(env, elems[0])) return NULL;
-
-        ERL_NIF_TERM a_texture = enif_make_atom(env, "texture");
-        if (!enif_is_identical(elems[0], a_texture)) return NULL;
-
-        handle_term = elems[2];
+        if (arity == 3 && enif_is_identical(elems[0], ATOM_TEXTURE)) {
+            handle_term = elems[2];
+        }
     }
 
+    elems = NULL;
+    arity = 0;
+
+    if (!enif_get_tuple(env, handle_term, &arity, &elems)) return NULL;
+    if (arity != 2) return NULL;
+    if (!enif_is_identical(elems[0], ATOM_TEXTURE_HANDLE)) return NULL;
+
     texture_res_t* res = NULL;
-    if (!enif_get_resource(env, handle_term, TEXTURE_RES_TYPE, (void**)&res))
+    if (!enif_get_resource(env, elems[1], TEXTURE_RES_TYPE, (void**)&res))
         return NULL;
 
     return res;

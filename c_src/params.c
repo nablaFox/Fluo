@@ -247,27 +247,31 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
     return 0;
 }
 
-int pack_std140_params_tuple(ErlNifEnv* env, ERL_NIF_TERM params_tuple,
-                             uint8_t* blob, size_t blob_size) {
+int pack_std140_params_term(ErlNifEnv* env, ERL_NIF_TERM params_term,
+                            uint8_t* blob, size_t blob_size) {
     const ERL_NIF_TERM* elems = NULL;
 
-    if (enif_is_identical(params_tuple, enif_make_atom(env, "nil"))) {
+    if (enif_is_identical(params_term, enif_make_atom(env, "nil"))) {
+        memset(blob, 0, blob_size);
         return 1;
     }
-
-    int arity = 0;
-    if (!enif_get_tuple(env, params_tuple, &arity, &elems)) return 0;
 
     size_t off = 0;
     memset(blob, 0, blob_size);
 
-    for (int i = 0; i < arity; i++) {
-        if (!pack_std140_term(env, elems[i], blob, blob_size, &off)) return 0;
+    int arity = 0;
+
+    if (enif_get_tuple(env, params_term, &arity, &elems)) {
+        for (int i = 0; i < arity; i++) {
+            if (!pack_std140_term(env, elems[i], blob, blob_size, &off))
+                return 0;
+        }
+        return off <= blob_size;
     }
 
-    if (off > blob_size) return 0;
+    if (!pack_std140_term(env, params_term, blob, blob_size, &off)) return 0;
 
-    return 1;
+    return off <= blob_size;
 }
 
 int get_viewport_from_term(ErlNifEnv* env, ERL_NIF_TERM term,

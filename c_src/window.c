@@ -1,9 +1,12 @@
 #include "window.h"
 
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 #include <vulkan/vulkan_core.h>
 
+#include "command.h"
 #include "device.h"
-#include "rendering.h"
 #include "utils.h"
 
 static ErlNifResourceType* WINDOW_RES_TYPE = NULL;
@@ -40,117 +43,6 @@ static inline void reset_mouse_tracking(window_res_t* w) {
     w->last_cb_y = 0.0;
 }
 
-static int create_sync_structs(window_res_t* w) {
-    VkDevice dev = g_device.logical_device;
-
-    w->image_available_sem = malloc(sizeof(VkSemaphore) * FRAMES_IN_FLIGHT);
-
-    w->finished_blitting_sem =
-        malloc(sizeof(VkSemaphore) * w->swapchain_image_count);
-
-    w->blit_fences = malloc(sizeof(VkFence) * FRAMES_IN_FLIGHT);
-
-    if (!w->image_available_sem || !w->finished_blitting_sem || !w->blit_fences)
-        goto fail_alloc;
-
-    memset(w->image_available_sem, 0, sizeof(VkSemaphore) * FRAMES_IN_FLIGHT);
-    memset(w->finished_blitting_sem, 0,
-           sizeof(VkSemaphore) * w->swapchain_image_count);
-    memset(w->blit_fences, 0, sizeof(VkFence) * FRAMES_IN_FLIGHT);
-
-    VkSemaphoreCreateInfo sem_ci = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-    VkFenceCreateInfo fence_ci = {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    };
-
-    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        if (vkCreateSemaphore(dev, &sem_ci, NULL, &w->image_available_sem[i]) !=
-            VK_SUCCESS)
-            goto fail;
-
-        if (vkCreateFence(dev, &fence_ci, NULL, &w->blit_fences[i]) !=
-            VK_SUCCESS)
-            goto fail;
-    }
-
-    for (uint32_t i = 0; i < w->swapchain_image_count; i++) {
-        if (vkCreateSemaphore(dev, &sem_ci, NULL,
-                              &w->finished_blitting_sem[i]) != VK_SUCCESS)
-            goto fail;
-    }
-
-    return 0;
-
-fail:
-    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        if (w->blit_fences && w->blit_fences[i])
-            vkDestroyFence(dev, w->blit_fences[i], NULL);
-        if (w->image_available_sem && w->image_available_sem[i])
-            vkDestroySemaphore(dev, w->image_available_sem[i], NULL);
-    }
-
-    for (uint32_t i = 0; i < w->swapchain_image_count; i++) {
-        if (w->finished_blitting_sem && w->finished_blitting_sem[i])
-            vkDestroySemaphore(dev, w->finished_blitting_sem[i], NULL);
-    }
-
-fail_alloc:
-    free(w->image_available_sem);
-    free(w->finished_blitting_sem);
-    free(w->blit_fences);
-    w->image_available_sem = NULL;
-    w->finished_blitting_sem = NULL;
-    w->blit_fences = NULL;
-    return -1;
-}
-
-static int create_blit_cmds(window_res_t* w) {
-    if (!w) return -1;
-
-    VkDevice dev = g_device.logical_device;
-    if (!dev) return -1;
-
-    w->blit_cmds =
-        (VkCommandBuffer*)malloc(sizeof(VkCommandBuffer) * FRAMES_IN_FLIGHT);
-    if (!w->blit_cmds) return -1;
-
-    memset(w->blit_cmds, 0, sizeof(VkCommandBuffer) * FRAMES_IN_FLIGHT);
-
-    VkCommandPoolCreateInfo pool_ci = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = g_device.graphics_family,
-    };
-
-    if (vkCreateCommandPool(dev, &pool_ci, NULL, &w->blit_cmd_pool) !=
-        VK_SUCCESS) {
-        free(w->blit_cmds);
-        w->blit_cmds = NULL;
-        w->blit_cmd_pool = VK_NULL_HANDLE;
-        return -1;
-    }
-
-    VkCommandBufferAllocateInfo alloc_ci = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = w->blit_cmd_pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = FRAMES_IN_FLIGHT,
-    };
-
-    if (vkAllocateCommandBuffers(dev, &alloc_ci, w->blit_cmds) != VK_SUCCESS) {
-        vkDestroyCommandPool(dev, w->blit_cmd_pool, NULL);
-        w->blit_cmd_pool = VK_NULL_HANDLE;
-
-        free(w->blit_cmds);
-        w->blit_cmds = NULL;
-        return -1;
-    }
-
-    return 0;
-}
-
 static VkSurfaceFormatKHR choose_surface_format(VkSurfaceKHR surface) {
     uint32_t count = 0;
     vkGetPhysicalDeviceSurfaceFormatsKHR(g_device.physical_device, surface,
@@ -159,7 +51,6 @@ static VkSurfaceFormatKHR choose_surface_format(VkSurfaceKHR surface) {
 
     VkSurfaceFormatKHR* formats =
         (VkSurfaceFormatKHR*)malloc(count * sizeof(VkSurfaceFormatKHR));
-
     assert(formats);
 
     vkGetPhysicalDeviceSurfaceFormatsKHR(g_device.physical_device, surface,
@@ -293,8 +184,7 @@ static void create_swapchain(window_res_t* w) {
     }
 
     assert(vkCreateSwapchainKHR(g_device.logical_device, &ci, NULL,
-                                &w->swapchain) == VK_SUCCESS &&
-           "failed to create swapchain");
+                                &w->swapchain) == VK_SUCCESS);
 
     w->swapchain_format = surface_format.format;
     w->swapchain_extent = extent;
@@ -349,8 +239,7 @@ static void get_swapchain_images_and_create_views(window_res_t* w) {
         };
 
         assert(vkCreateImageView(g_device.logical_device, &ci, NULL,
-                                 &w->swapchain_images[i].view) == VK_SUCCESS &&
-               "failed to create swapchain image view");
+                                 &w->swapchain_images[i].view) == VK_SUCCESS);
     }
 
     free(images);
@@ -363,40 +252,15 @@ static void destroy_window(window_res_t* w) {
 
     vkDeviceWaitIdle(dev);
 
-    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        if (w->blit_fences[i]) vkDestroyFence(dev, w->blit_fences[i], NULL);
+    if (w->blit_fence) {
+        vkDestroyFence(dev, w->blit_fence, NULL);
+        w->blit_fence = VK_NULL_HANDLE;
     }
 
-    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        if (w->finished_blitting_sem[i])
-            vkDestroySemaphore(dev, w->finished_blitting_sem[i], NULL);
+    if (g_blit_cmd_pool != VK_NULL_HANDLE && w->blit_cmd) {
+        vkFreeCommandBuffers(dev, g_blit_cmd_pool, 1, &w->blit_cmd);
+        w->blit_cmd = VK_NULL_HANDLE;
     }
-
-    for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        if (w->image_available_sem[i])
-            vkDestroySemaphore(dev, w->image_available_sem[i], NULL);
-    }
-
-    if (w->blit_cmd_pool != VK_NULL_HANDLE) {
-        if (w->blit_cmds) {
-            vkFreeCommandBuffers(dev, w->blit_cmd_pool, FRAMES_IN_FLIGHT,
-                                 w->blit_cmds);
-        }
-
-        vkDestroyCommandPool(dev, w->blit_cmd_pool, NULL);
-        w->blit_cmd_pool = VK_NULL_HANDLE;
-    }
-
-    free(w->blit_cmds);
-    w->blit_cmds = NULL;
-
-    free(w->blit_fences);
-    free(w->finished_blitting_sem);
-    free(w->image_available_sem);
-
-    w->blit_fences = NULL;
-    w->finished_blitting_sem = NULL;
-    w->image_available_sem = NULL;
 
     destroy_swapchain_image_views(w);
 
@@ -413,7 +277,6 @@ static void destroy_window(window_res_t* w) {
     if (w->handle) {
         glfwSetCursorPosCallback(w->handle, NULL);
         glfwSetWindowUserPointer(w->handle, NULL);
-
         glfwDestroyWindow(w->handle);
         w->handle = NULL;
     }
@@ -422,9 +285,30 @@ static void destroy_window(window_res_t* w) {
 static void window_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
 
-    vkDeviceWaitIdle(g_device.logical_device);
+    if (g_device.logical_device) vkDeviceWaitIdle(g_device.logical_device);
 
     destroy_window((window_res_t*)obj);
+}
+
+static uint32_t get_curr_swapchain_idx_fence(const window_res_t* w, VkFence f) {
+    if (!w) return UINT32_MAX;
+    if (!w->swapchain) return UINT32_MAX;
+    if (w->swapchain_image_count == 0 || !w->swapchain_images)
+        return UINT32_MAX;
+    if (f == VK_NULL_HANDLE) return UINT32_MAX;
+
+    VkDevice dev = g_device.logical_device;
+    if (!dev) return UINT32_MAX;
+
+    uint32_t img_idx = 0;
+    VkResult acq = vkAcquireNextImageKHR(dev, w->swapchain, UINT64_MAX,
+                                         VK_NULL_HANDLE, f, &img_idx);
+
+    if (acq == VK_ERROR_OUT_OF_DATE_KHR) return UINT32_MAX;
+    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) return UINT32_MAX;
+    if (img_idx >= w->swapchain_image_count) return UINT32_MAX;
+
+    return img_idx;
 }
 
 int nif_init_window_res(ErlNifEnv* env) {
@@ -432,7 +316,20 @@ int nif_init_window_res(ErlNifEnv* env) {
         enif_open_resource_type(env, "fluo_nif", "window_res", window_res_dtor,
                                 ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER, NULL);
 
-    return WINDOW_RES_TYPE ? 0 : -1;
+    if (!WINDOW_RES_TYPE) return -1;
+
+    return 0;
+}
+
+window_res_t* get_window_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
+    window_res_t* res = NULL;
+
+    if (!enif_get_resource(env, term, WINDOW_RES_TYPE, (void**)&res))
+        return NULL;
+
+    if (!res || !res->handle) return NULL;
+
+    return res;
 }
 
 ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
@@ -490,12 +387,27 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
     create_swapchain(res);
     get_swapchain_images_and_create_views(res);
 
-    if (create_sync_structs(res) != 0) {
+    VkDevice dev = g_device.logical_device;
+
+    VkCommandBufferAllocateInfo alloc_ci = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = g_blit_cmd_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    if (vkAllocateCommandBuffers(dev, &alloc_ci, &res->blit_cmd) !=
+        VK_SUCCESS) {
         enif_release_resource(res);
         return enif_make_badarg(env);
     }
 
-    if (create_blit_cmds(res) != 0) {
+    VkFenceCreateInfo fence_ci = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+    };
+
+    if (vkCreateFence(dev, &fence_ci, NULL, &res->blit_fence) != VK_SUCCESS) {
         enif_release_resource(res);
         return enif_make_badarg(env);
     }
@@ -509,144 +421,22 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
 
 ERL_NIF_TERM nif_window_should_close(ErlNifEnv* env, int argc,
                                      const ERL_NIF_TERM argv[]) {
-    if (argc != 1) return enif_make_badarg(env);
-
     window_res_t* res = get_window_from_term(env, argv[0]);
 
     if (!res) return enif_make_badarg(env);
 
     glfwPollEvents();
 
-    int should_close = glfwWindowShouldClose(res->handle);
+    const int should_close = glfwWindowShouldClose(res->handle);
 
     return should_close ? enif_make_atom(env, "true")
                         : enif_make_atom(env, "false");
 }
 
-ERL_NIF_TERM nif_window_keys_down(ErlNifEnv* env, int argc,
-                                  const ERL_NIF_TERM argv[]) {
-    if (argc != 1) return enif_make_badarg(env);
-
-    window_res_t* w = get_window_from_term(env, argv[0]);
-    if (!w || !w->handle) return enif_make_badarg(env);
-
-    typedef struct {
-        int glfw_key;
-        const char* atom;
-    } KeySpec;
-
-    static const KeySpec ORDER[] = {
-        {GLFW_KEY_ENTER, "enter"},
-        {GLFW_KEY_ESCAPE, "escape"},
-        {GLFW_KEY_SPACE, "space"},
-        {GLFW_KEY_BACKSPACE, "backspace"},
-        {GLFW_KEY_TAB, "tab"},
-
-        {GLFW_KEY_LEFT_SHIFT, "l_shift"},
-        {GLFW_KEY_RIGHT_SHIFT, "r_shift"},
-        {GLFW_KEY_LEFT_ALT, "l_alt"},
-        {GLFW_KEY_RIGHT_ALT, "r_alt"},
-        {GLFW_KEY_LEFT_CONTROL, "l_ctrl"},
-        {GLFW_KEY_RIGHT_CONTROL, "r_ctrl"},
-
-        {GLFW_KEY_A, "key_a"},
-        {GLFW_KEY_B, "key_b"},
-        {GLFW_KEY_C, "key_c"},
-        {GLFW_KEY_D, "key_d"},
-        {GLFW_KEY_E, "key_e"},
-        {GLFW_KEY_F, "key_f"},
-        {GLFW_KEY_G, "key_g"},
-        {GLFW_KEY_H, "key_h"},
-        {GLFW_KEY_I, "key_i"},
-        {GLFW_KEY_J, "key_j"},
-        {GLFW_KEY_K, "key_k"},
-        {GLFW_KEY_L, "key_l"},
-        {GLFW_KEY_M, "key_m"},
-        {GLFW_KEY_N, "key_n"},
-        {GLFW_KEY_O, "key_o"},
-        {GLFW_KEY_P, "key_p"},
-        {GLFW_KEY_Q, "key_q"},
-        {GLFW_KEY_R, "key_r"},
-        {GLFW_KEY_S, "key_s"},
-        {GLFW_KEY_T, "key_t"},
-        {GLFW_KEY_U, "key_u"},
-        {GLFW_KEY_V, "key_v"},
-        {GLFW_KEY_W, "key_w"},
-        {GLFW_KEY_X, "key_x"},
-        {GLFW_KEY_Y, "key_y"},
-        {GLFW_KEY_Z, "key_z"},
-
-        {GLFW_KEY_UP, "arrow_up"},
-        {GLFW_KEY_DOWN, "arrow_down"},
-        {GLFW_KEY_LEFT, "arrow_left"},
-        {GLFW_KEY_RIGHT, "arrow_right"},
-    };
-
-    ERL_NIF_TERM list = enif_make_list(env, 0);
-
-    for (int i = (int)(sizeof(ORDER) / sizeof(ORDER[0])) - 1; i >= 0; --i) {
-        if (glfwGetKey(w->handle, ORDER[i].glfw_key) == GLFW_PRESS) {
-            list = enif_make_list_cell(env, enif_make_atom(env, ORDER[i].atom),
-                                       list);
-        }
-    }
-
-    return list;
-}
-
-ERL_NIF_TERM nif_window_mouse_pos(ErlNifEnv* env, int argc,
-                                  const ERL_NIF_TERM argv[]) {
-    if (argc != 1) return enif_make_badarg(env);
-
-    window_res_t* w = get_window_from_term(env, argv[0]);
-    if (!w || !w->handle) return enif_make_badarg(env);
-
-    if (glfwGetInputMode(w->handle, GLFW_CURSOR) == GLFW_CURSOR_DISABLED) {
-        return enif_make_tuple3(env, enif_make_atom(env, "position"),
-                                enif_make_double(env, 0.0),
-                                enif_make_double(env, 0.0));
-    }
-
-    return enif_make_tuple3(env, enif_make_atom(env, "position"),
-                            enif_make_double(env, w->curr_cb_x),
-                            enif_make_double(env, w->curr_cb_y));
-}
-
-ERL_NIF_TERM nif_window_mouse_delta(ErlNifEnv* env, int argc,
-                                    const ERL_NIF_TERM argv[]) {
-    if (argc != 1) return enif_make_badarg(env);
-
-    window_res_t* w = get_window_from_term(env, argv[0]);
-    if (!w || !w->handle) return enif_make_badarg(env);
-
-    if (!glfwGetWindowAttrib(w->handle, GLFW_FOCUSED)) {
-        reset_mouse_tracking(w);
-        return enif_make_tuple3(env, enif_make_atom(env, "position"),
-                                enif_make_double(env, 0.0),
-                                enif_make_double(env, 0.0));
-    }
-
-    double dx = w->accum_dx;
-    double dy = w->accum_dy;
-
-    w->accum_dx = 0.0;
-    w->accum_dy = 0.0;
-
-    if (dx > 80.0) dx = 80.0;
-    if (dx < -80.0) dx = -80.0;
-    if (dy > 80.0) dy = 80.0;
-    if (dy < -80.0) dy = -80.0;
-
-    return enif_make_tuple3(env, enif_make_atom(env, "position"),
-                            enif_make_double(env, dx),
-                            enif_make_double(env, dy));
-}
-
 ERL_NIF_TERM nif_window_delta_time(ErlNifEnv* env, int argc,
                                    const ERL_NIF_TERM argv[]) {
-    if (argc != 1) return enif_make_badarg(env);
-
     window_res_t* w = get_window_from_term(env, argv[0]);
+
     if (!w || !w->handle) return enif_make_badarg(env);
 
     double now = glfwGetTime();
@@ -666,75 +456,101 @@ ERL_NIF_TERM nif_window_delta_time(ErlNifEnv* env, int argc,
     return enif_make_double(env, dt);
 }
 
-ERL_NIF_TERM nif_window_capture_mouse(ErlNifEnv* env, int argc,
-                                      const ERL_NIF_TERM argv[]) {
-    if (argc != 1) return enif_make_badarg(env);
+ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
+                              const ERL_NIF_TERM argv[]) {
+    window_res_t* window = get_window_from_term(env, argv[0]);
+    if (!window) return enif_make_badarg(env);
 
-    window_res_t* w = get_window_from_term(env, argv[0]);
-    if (!w || !w->handle) return enif_make_badarg(env);
+    image_res_t* color_image = get_image_from_term(env, argv[1]);
+    if (!color_image) return enif_make_badarg(env);
 
-    glfwSetInputMode(w->handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    const command_res_t* cmd_res = get_command_from_term(env, argv[2]);
 
-    reset_mouse_tracking(w);
+    if (!cmd_res) return enif_make_badarg(env);
 
-    return enif_make_atom(env, "ok");
-}
-
-ERL_NIF_TERM nif_window_release_mouse(ErlNifEnv* env, int argc,
-                                      const ERL_NIF_TERM argv[]) {
-    if (argc != 1) return enif_make_badarg(env);
-
-    window_res_t* w = get_window_from_term(env, argv[0]);
-    if (!w || !w->handle) return enif_make_badarg(env);
-
-    glfwSetInputMode(w->handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-
-    reset_mouse_tracking(w);
-
-    return enif_make_atom(env, "ok");
-}
-
-window_res_t* get_window_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
-    const ERL_NIF_TERM* elems = NULL;
-    int arity = 0;
-
-    if (!enif_get_tuple(env, term, &arity, &elems)) return NULL;
-    if (arity != 7) return NULL;
-
-    ERL_NIF_TERM handle_term = elems[6];
-
-    window_res_t* res = NULL;
-    if (!enif_get_resource(env, handle_term, WINDOW_RES_TYPE, (void**)&res))
-        return NULL;
-
-    if (!res || !res->handle) return NULL;
-
-    return res;
-}
-
-uint32_t get_curr_swapchain_idx(const window_res_t* w, VkSemaphore signal_sem) {
-    if (!w) return UINT32_MAX;
-    if (!w->swapchain) return UINT32_MAX;
-    if (w->swapchain_image_count == 0 || !w->swapchain_images)
-        return UINT32_MAX;
-    if (signal_sem == VK_NULL_HANDLE) return UINT32_MAX;
+    VkSemaphore present_wait_sem = cmd_res->finished_sem[cmd_res->frame];
 
     VkDevice dev = g_device.logical_device;
-    if (!dev) return UINT32_MAX;
 
-    uint32_t img_idx = 0;
-    VkResult acq = vkAcquireNextImageKHR(dev, w->swapchain, UINT64_MAX,
-                                         signal_sem, VK_NULL_HANDLE, &img_idx);
+    VkCommandBuffer blit_cmd = window->blit_cmd;
+    VkFence fence = window->blit_fence;
 
-    if (acq == VK_ERROR_OUT_OF_DATE_KHR) return UINT32_MAX;
+    vkWaitForFences(dev, 1, &fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(dev, 1, &fence);
 
-    if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) {
-        return UINT32_MAX;
+    uint32_t img_idx = get_curr_swapchain_idx_fence(window, fence);
+    if (img_idx == UINT32_MAX) return enif_make_atom(env, "out_of_date");
+
+    vkWaitForFences(dev, 1, &fence, VK_TRUE, UINT64_MAX);
+    vkResetFences(dev, 1, &fence);
+
+    vkResetCommandBuffer(blit_cmd, 0);
+
+    VkCommandBufferBeginInfo begin = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+
+    THROW_VK_ERROR(env, vkBeginCommandBuffer(blit_cmd, &begin));
+
+    image_res_t* swapchain_image = &window->swapchain_images[img_idx];
+
+    transition_image_layout(color_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                            blit_cmd);
+
+    transition_image_layout(swapchain_image,
+                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, blit_cmd);
+
+    blit_image(*color_image, *swapchain_image, blit_cmd);
+
+    transition_iamge_to_optimal_layout(swapchain_image, blit_cmd);
+    transition_iamge_to_optimal_layout(color_image, blit_cmd);
+
+    THROW_VK_ERROR(env, vkEndCommandBuffer(blit_cmd));
+
+    VkCommandBufferSubmitInfo cmd_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+        .commandBuffer = blit_cmd,
+        .deviceMask = 0,
+    };
+
+    VkSemaphoreSubmitInfo signal_sem = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = present_wait_sem,
+        .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+        .value = 0,
+    };
+
+    VkSubmitInfo2 submit = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .waitSemaphoreInfoCount = 0,
+        .pWaitSemaphoreInfos = NULL,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &cmd_info,
+        .signalSemaphoreInfoCount = 1,
+        .pSignalSemaphoreInfos = &signal_sem,
+    };
+
+    THROW_VK_ERROR(env,
+                   vkQueueSubmit2(g_device.graphics_queue, 1, &submit, fence));
+
+    VkPresentInfoKHR present = {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &present_wait_sem,
+        .swapchainCount = 1,
+        .pSwapchains = &window->swapchain,
+        .pImageIndices = &img_idx,
+    };
+
+    VkResult pr = vkQueuePresentKHR(g_device.present_queue, &present);
+
+    if (pr == VK_ERROR_OUT_OF_DATE_KHR)
+        return enif_make_atom(env, "out_of_date");
+
+    if (pr != VK_SUCCESS && pr != VK_SUBOPTIMAL_KHR) {
+        THROW_VK_ERROR(env, pr);
     }
 
-    if (img_idx >= w->swapchain_image_count) {
-        return UINT32_MAX;
-    }
-
-    return img_idx;
+    return enif_make_atom(env, "ok");
 }

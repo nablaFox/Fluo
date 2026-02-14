@@ -19,10 +19,13 @@ endif
 
 C_SRCS := \
   vendor/spirv_reflect.c \
+  keys.c \
+  mouse.c \
+  image_layout.c \
+  command.c \
   texture.c \
   params.c \
   image.c \
-  rendering.c \
   utils.c \
   shaders.c \
   renderer.c \
@@ -36,7 +39,7 @@ CPP_SRCS := \
   mesh_obj.cpp \
   vendor/vma_impl.cpp
 
-all: $(SO)
+all: $(SO) $(GLSL_DST)
 
 $(SO): $(C_SRCS) $(CPP_SRCS)
 	mkdir -p $(APP_PRIV_DIR)

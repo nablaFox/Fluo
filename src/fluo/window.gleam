@@ -1,5 +1,5 @@
-import fluo/command.{type CommandRendering}
-import fluo/image.{type ColorImage, type DepthImage}
+import fluo/command.{type Command, type CommandRendering}
+import fluo/image.{type ColorImage, type DepthImage, type ImageHandle}
 import fluo/key.{type Key}
 import fluo/mesh.{type Mesh}
 import fluo/renderer.{type Renderer}
@@ -51,28 +51,28 @@ pub type Position {
 fn create_window_raw(title: String, width: Int, height: Int) -> Dynamic
 
 @external(erlang, "fluo_nif", "window_should_close")
-pub fn window_should_close(window: Window) -> Bool
+fn window_should_close_raw(window: Dynamic) -> Bool
 
 @external(erlang, "fluo_nif", "window_keys_down")
-pub fn keys_down(window: Window) -> List(Key)
+fn keys_down_raw(window: Dynamic) -> List(Key)
 
 @external(erlang, "fluo_nif", "window_mouse_pos")
-pub fn mouse_position(window: Window) -> Position
+fn mouse_position_raw(window: Dynamic) -> Position
 
 @external(erlang, "fluo_nif", "window_mouse_delta")
-pub fn mouse_delta(window: Window) -> Position
+fn mouse_delta_raw(window: Dynamic) -> Position
 
 @external(erlang, "fluo_nif", "swap_buffers")
-pub fn swap(window: Window, color: ColorImage) -> Nil
+fn swap_raw(window: Dynamic, color: ImageHandle, waiting: Dynamic) -> Nil
 
 @external(erlang, "fluo_nif", "window_delta_time")
-pub fn delta(window: Window) -> Float
+fn delta_raw(window: Dynamic) -> Float
 
 @external(erlang, "fluo_nif", "window_capture_mouse")
-pub fn capture_mouse(window: Window) -> Nil
+fn capture_mouse_raw(window: Dynamic) -> Nil
 
 @external(erlang, "fluo_nif", "window_release_mouse")
-pub fn release_mouse(window: Window) -> Nil
+fn release_mouse_raw(window: Dynamic) -> Nil
 
 pub fn create_window(
   title: String,
@@ -88,8 +88,48 @@ pub fn create_window(
   Window(width, height, title, color, depth, handle)
 }
 
-pub fn present(window: Window) -> Nil {
-  swap(window, window.color)
+pub fn window_should_close(window: Window) -> Bool {
+  let WindowHandle(handle) = window.handle
+  window_should_close_raw(handle)
+}
+
+pub fn keys_down(window: Window) -> List(Key) {
+  let WindowHandle(handle) = window.handle
+  keys_down_raw(handle)
+}
+
+pub fn mouse_position(window: Window) -> Position {
+  let WindowHandle(handle) = window.handle
+  mouse_position_raw(handle)
+}
+
+pub fn mouse_delta(window: Window) -> Position {
+  let WindowHandle(handle) = window.handle
+  mouse_delta_raw(handle)
+}
+
+pub fn delta(window: Window) -> Float {
+  let WindowHandle(handle) = window.handle
+  delta_raw(handle)
+}
+
+pub fn capture_mouse(window: Window) -> Nil {
+  let WindowHandle(handle) = window.handle
+  capture_mouse_raw(handle)
+}
+
+pub fn release_mouse(window: Window) -> Nil {
+  let WindowHandle(handle) = window.handle
+  release_mouse_raw(handle)
+}
+
+pub fn swap(window: Window, color: ColorImage, waiting: Command) -> Nil {
+  let WindowHandle(handle) = window.handle
+  swap_raw(handle, color.handle, command.handle(waiting))
+}
+
+pub fn present(window: Window, waiting waiting: Command) -> Nil {
+  swap(window, window.color, waiting)
 }
 
 pub fn drawer(
@@ -176,7 +216,7 @@ pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
         callback(ctx, state)
       }
 
-      present(window)
+      present(window, cmd)
 
       loop(window, state, callback)
     }

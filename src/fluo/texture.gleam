@@ -34,7 +34,3 @@ pub fn load_texture(path: String) -> Texture {
 
   Texture(color, handle)
 }
-
-pub fn color(texture: Texture) -> image.ColorImage {
-  texture.color
-}

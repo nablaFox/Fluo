@@ -21,12 +21,6 @@ fn create_renderer_raw(
   frag: String,
 ) -> Dynamic
 
-@external(erlang, "fluo_nif", "set_frame_params")
-pub fn set_frame_params(
-  renderer: Renderer(material, frame_params, draw_params),
-  params: frame_params,
-) -> Nil
-
 pub fn create_renderer(
   vert vert: String,
   frag frag: String,

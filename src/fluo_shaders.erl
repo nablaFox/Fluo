@@ -9,6 +9,10 @@
     "layout(location = 2) in vec2 in_uv;\n">>
 ).
 
+-define(FRAGMENT_OUTPUT,
+  <<"layout(location = 0) out vec4 out_color;\n">>
+).
+
 compile_shaders(PrivDir) ->
   case os:find_executable("glslc") of
     false ->
@@ -44,7 +48,7 @@ compile_all(Glslc, PrefixBin, PrivDir, ShadersDir, [Name | Rest]) ->
 compile_one(Glslc, PrefixBin, PrivDir, ShaderPath) ->
   case stage_of(ShaderPath) of
     none ->
-      ok; 
+      ok;
     Stage ->
       case file:read_file(ShaderPath) of
         {error, E} ->
@@ -61,7 +65,7 @@ compile_one(Glslc, PrefixBin, PrivDir, ShaderPath) ->
 combined_source(vert, PrefixBin, ShaderBin) ->
   [PrefixBin, <<"\n">>, ?VERTEX_INPUT, <<"\n">>, ShaderBin];
 combined_source(frag, PrefixBin, ShaderBin) ->
-  [PrefixBin, <<"\n">>, ShaderBin].
+  [PrefixBin, <<"\n">>, ?FRAGMENT_OUTPUT, <<"\n">>, ShaderBin].
 
 with_temp_glsl(PrivDir, Iolist, Fun) ->
   TmpName = io_lib:format(".fluo_tmp_~p.glsl", [erlang:unique_integer([monotonic, positive])]),

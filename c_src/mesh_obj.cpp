@@ -109,7 +109,6 @@ extern "C" ERL_NIF_TERM nif_load_mesh_from_obj(ErlNifEnv* env, int argc, const E
         return enif_make_badarg(env);
 
     ErlNifBinary bin;
-
     if (!enif_inspect_binary(env, argv[0], &bin))
         return enif_make_badarg(env);
 
@@ -121,11 +120,15 @@ extern "C" ERL_NIF_TERM nif_load_mesh_from_obj(ErlNifEnv* env, int argc, const E
     path[bin.size] = '\0';
 
     mesh_res_t* res = load_mesh_from_obj_cpp(path);
-
     if (!res)
         return enif_make_badarg(env);
 
     ERL_NIF_TERM handle_term = enif_make_resource(env, res);
+
+    ERL_NIF_TERM vcount_term = enif_make_int(env, (int)res->vertices_count);
+    ERL_NIF_TERM icount_term = enif_make_int(env, (int)res->indices_count);
+
     enif_release_resource(res);
-    return handle_term;
+
+    return enif_make_tuple3(env, vcount_term, icount_term, handle_term);
 }

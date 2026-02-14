@@ -70,3 +70,9 @@ ERL_NIF_TERM nif_create_color_image(ErlNifEnv* env, int argc, const ERL_NIF_TERM
 ERL_NIF_TERM nif_read_image(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 ERL_NIF_TERM nif_save_color_image_to_png(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+image_res_t* get_image_from_option(ErlNifEnv* env, ERL_NIF_TERM term);
+
+extern VkCommandPool g_blit_cmd_pool;
+
+void destroy_blit_command_pool(void);

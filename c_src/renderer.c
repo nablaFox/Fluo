@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "command.h"
 #include "device.h"
 #include "params.h"
 #include "shaders.h"
@@ -17,6 +18,7 @@ static PFN_vkCreateShadersEXT vkCreateShadersEXT_;
 static PFN_vkDestroyShaderEXT vkDestroyShaderEXT_;
 
 static ErlNifResourceType* RENDERER_RES_TYPE = NULL;
+static ERL_NIF_TERM ATOM_RENDERER_HANDLE;
 
 static atomic_uint_fast32_t g_next_params_index = 0;
 static atomic_uint_fast32_t g_next_material_index = 0;
@@ -145,8 +147,8 @@ static void renderer_res_dtor(ErlNifEnv* env, void* obj) {
     vkDeviceWaitIdle(g_device.logical_device);
 
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        destroy_gpu_buffer(&r->params_ubo[i]);
-        r->params_index[i] = UINT32_MAX;
+        destroy_gpu_buffer(&r->frame_params_ubo[i]);
+        r->frame_params_index[i] = UINT32_MAX;
     }
 
     destroy_gpu_buffer(&r->material_ubo);
@@ -170,6 +172,8 @@ int nif_init_renderer_res(ErlNifEnv* env) {
 
     if (!RENDERER_RES_TYPE) return -1;
 
+    ATOM_RENDERER_HANDLE = enif_make_atom(env, "renderer_handle");
+
     vkCreateShadersEXT_ = (PFN_vkCreateShadersEXT)vkGetDeviceProcAddr(
         g_device.logical_device, "vkCreateShadersEXT");
 
@@ -186,24 +190,15 @@ int nif_init_renderer_res(ErlNifEnv* env) {
 }
 
 renderer_res_t* get_renderer_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
-    ERL_NIF_TERM handle_term = term;
-
     const ERL_NIF_TERM* elems = NULL;
     int arity = 0;
 
-    if (enif_get_tuple(env, term, &arity, &elems)) {
-        if (arity != 5) return NULL;
+    if (!enif_get_tuple(env, term, &arity, &elems) || arity != 2) return NULL;
 
-        if (!enif_is_atom(env, elems[0])) return NULL;
-        if (!enif_is_identical(elems[0], enif_make_atom(env, "renderer")))
-            return NULL;
-
-        handle_term = elems[4];
-    }
+    if (!enif_is_identical(elems[0], ATOM_RENDERER_HANDLE)) return NULL;
 
     renderer_res_t* res = NULL;
-
-    if (!enif_get_resource(env, handle_term, RENDERER_RES_TYPE, (void**)&res))
+    if (!enif_get_resource(env, elems[1], RENDERER_RES_TYPE, (void**)&res))
         return NULL;
 
     return res;
@@ -251,8 +246,8 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
     res->material_ubo = (GpuBuffer){0};
 
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        res->params_ubo[i] = (GpuBuffer){0};
-        res->params_index[i] = UINT32_MAX;
+        res->frame_params_ubo[i] = (GpuBuffer){0};
+        res->frame_params_index[i] = UINT32_MAX;
     }
 
     VkPushConstantRange push_range = {
@@ -292,13 +287,14 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
 
     size_t params_ubo_size = reflect_max_ubo_size(
         (const uint32_t*)vert_code, vert_size, (const uint32_t*)frag_code,
-        frag_size, PARAMS_BINDING);
+        frag_size, FRAME_PARAMS_BINDING);
 
     if (params_ubo_size > 0) {
         for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-            if (!create_and_bind_ubo(&res->params_ubo[i], &res->params_index[i],
-                                     (VkDeviceSize)params_ubo_size,
-                                     PARAMS_BINDING, alloc_params_index)) {
+            if (!create_and_bind_ubo(
+                    &res->frame_params_ubo[i], &res->frame_params_index[i],
+                    (VkDeviceSize)params_ubo_size, FRAME_PARAMS_BINDING,
+                    alloc_params_index)) {
                 goto fail;
             }
         }
@@ -319,8 +315,8 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
 
         if (!ubo_blob) goto fail;
 
-        if (!pack_std140_params_tuple(env, argv[0], ubo_blob,
-                                      material_ubo_size)) {
+        if (!pack_std140_params_term(env, argv[0], ubo_blob,
+                                     material_ubo_size)) {
             goto fail;
         }
 
@@ -356,8 +352,8 @@ fail:
 
     if (res) {
         for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-            destroy_gpu_buffer(&res->params_ubo[i]);
-            res->params_index[i] = UINT32_MAX;
+            destroy_gpu_buffer(&res->frame_params_ubo[i]);
+            res->frame_params_index[i] = UINT32_MAX;
         }
 
         destroy_gpu_buffer(&res->material_ubo);
@@ -380,41 +376,52 @@ fail:
     return enif_make_badarg(env);
 }
 
-uint32_t get_params_index_for_frame(const renderer_res_t* r, uint32_t frame) {
+uint32_t get_frame_params_index(const renderer_res_t* r, uint32_t frame) {
     if (!r) return UINT32_MAX;
     if (frame >= FRAMES_IN_FLIGHT) return UINT32_MAX;
-    return r->params_index[frame];
+    return r->frame_params_index[frame];
 }
 
-void update_params_for_frame(ErlNifEnv* env, const renderer_res_t* r,
-                             uint32_t frame, ERL_NIF_TERM params) {
-    if (!env || !r) return;
-    if (frame >= FRAMES_IN_FLIGHT) return;
+ERL_NIF_TERM nif_set_frame_params(ErlNifEnv* env, int argc,
+                                  const ERL_NIF_TERM argv[]) {
+    const command_res_t* cmd_res = get_command_from_term(env, argv[0]);
 
-    GpuBuffer* buf = (GpuBuffer*)&r->params_ubo[frame];
+    if (!cmd_res) return enif_make_badarg(env);
 
-    if (!buf || !buf->buffer || buf->size == 0) return;
+    const renderer_res_t* renderer_res = get_renderer_from_term(env, argv[1]);
+
+    if (!renderer_res) return enif_make_badarg(env);
+
+    const uint32_t frame = cmd_res->frame;
+
+    GpuBuffer* buf = (GpuBuffer*)&renderer_res->frame_params_ubo[frame];
+
+    const ERL_NIF_TERM params = argv[2];
+
+    if (!buf || !buf->buffer || buf->size == 0) return enif_make_badarg(env);
 
     const size_t ubo_size = (size_t)buf->size;
 
     uint8_t* ubo_blob = (uint8_t*)enif_alloc(ubo_size);
-    if (!ubo_blob) return;
+    if (!ubo_blob) return enif_make_badarg(env);
 
-    if (!pack_std140_params_tuple(env, params, ubo_blob, ubo_size)) {
+    if (!pack_std140_params_term(env, params, ubo_blob, ubo_size)) {
         enif_fprintf(
             stderr,
             "renderer: std140 pack failed or size mismatch (size=%llu)\n",
             (unsigned long long)ubo_size);
         enif_free(ubo_blob);
-        return;
+        return enif_make_badarg(env);
     }
 
     if (!direct_write_gpu_buffer(buf, ubo_blob, (VkDeviceSize)ubo_size, 0)) {
         enif_fprintf(stderr, "renderer: failed to update params (size=%llu)\n",
                      (unsigned long long)ubo_size);
         enif_free(ubo_blob);
-        return;
+        return enif_make_badarg(env);
     }
 
     enif_free(ubo_blob);
+
+    return enif_make_atom(env, "ok");
 }

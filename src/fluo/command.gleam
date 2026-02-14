@@ -1,6 +1,6 @@
-import fluo/image.{type ColorImage, type DepthImage}
-import fluo/mesh.{type Mesh}
-import fluo/renderer.{type Renderer}
+import fluo/image.{type ColorImage, type DepthImage, type ImageHandle}
+import fluo/mesh.{type Mesh, type MeshHandle}
+import fluo/renderer.{type Renderer, type RendererHandle}
 import gleam/dynamic.{type Dynamic}
 import gleam/option.{type Option, None, Some}
 
@@ -33,32 +33,39 @@ pub opaque type CommandRecorded {
 fn create_command_raw() -> Dynamic
 
 @external(erlang, "fluo_nif", "start_command_recording")
-fn start_command_recording_raw(cmd: Command) -> Nil
+fn start_command_recording_raw(cmd: Dynamic) -> Nil
 
 @external(erlang, "fluo_nif", "end_command_recording")
-fn end_command_recording_raw(cmd: CommandRecording) -> Nil
+fn end_command_recording_raw(cmd: Dynamic) -> Nil
 
 @external(erlang, "fluo_nif", "submit_command")
-fn submit_command_raw(cmd: CommandRecorded) -> Nil
+fn submit_command_raw(cmd: Dynamic) -> Nil
 
 @external(erlang, "fluo_nif", "start_rendering")
 fn start_rendering_raw(
-  cmd: CommandRecording,
-  color: Option(ColorImage),
-  depth: Option(DepthImage),
+  cmd: Dynamic,
+  color: Option(ImageHandle),
+  depth: Option(ImageHandle),
 ) -> Nil
 
 @external(erlang, "fluo_nif", "end_rendering")
-fn end_rendering_raw(cmd: CommandRendering) -> Nil
+fn end_rendering_raw(cmd: Dynamic) -> Nil
 
 @external(erlang, "fluo_nif", "draw_mesh")
 fn draw_raw(
-  cmd: CommandRendering,
-  renderer: Renderer(material, frame_params, draw_params),
-  mesh mesh: Mesh,
+  cmd: Dynamic,
+  renderer: RendererHandle,
+  mesh: MeshHandle,
   params params: params,
   scissor scissor: #(Int, Int, Int, Int),
   viewport viewport: #(Int, Int, Int, Int),
+) -> Nil
+
+@external(erlang, "fluo_nif", "set_frame_params")
+fn set_frame_params(
+  cmd: Dynamic,
+  renderer: RendererHandle,
+  params: frame_params,
 ) -> Nil
 
 pub fn create_command() -> Command {
@@ -66,9 +73,9 @@ pub fn create_command() -> Command {
 }
 
 fn start_command_recording(cmd: Command) -> CommandRecording {
-  start_command_recording_raw(cmd)
-
   let Command(handle) = cmd
+
+  start_command_recording_raw(handle)
 
   CommandRecording(handle)
 }
@@ -78,33 +85,43 @@ fn start_rendering(
   color: Option(ColorImage),
   depth: Option(DepthImage),
 ) -> CommandRendering {
-  start_rendering_raw(cmd, color, depth)
-
   let CommandRecording(handle) = cmd
+
+  let color = case color {
+    Some(image) -> Some(image.handle)
+    None -> None
+  }
+
+  let depth = case depth {
+    Some(image) -> Some(image.handle)
+    None -> None
+  }
+
+  start_rendering_raw(handle, color, depth)
 
   CommandRendering(handle)
 }
 
 fn end_rendering(cmd: CommandRendering) -> CommandRecording {
-  end_rendering_raw(cmd)
-
   let CommandRendering(handle) = cmd
+
+  end_rendering_raw(handle)
 
   CommandRecording(handle)
 }
 
 fn end_command_recording(cmd: CommandRecording) -> CommandRecorded {
-  end_command_recording_raw(cmd)
-
   let CommandRecording(handle) = cmd
+
+  end_command_recording_raw(handle)
 
   CommandRecorded(handle)
 }
 
 fn submit_command(cmd: CommandRecorded) -> Command {
-  submit_command_raw(cmd)
-
   let CommandRecorded(handle) = cmd
+
+  submit_command_raw(handle)
 
   Command(handle)
 }
@@ -179,23 +196,28 @@ pub fn render_depth_frame(
 }
 
 pub fn draw(
-  cmd: CommandRendering,
-  renderer: Renderer(material, frame_params, draw_params),
-  mesh: Mesh,
-  params: params,
-  scissor: #(Int, Int, Int, Int),
-  viewport: #(Int, Int, Int, Int),
+  cmd cmd: CommandRendering,
+  renderer renderer: Renderer(material, frame_params, draw_params),
+  mesh mesh: Mesh,
+  params params: params,
+  scisor scissor: #(Int, Int, Int, Int),
+  viewport viewport: #(Int, Int, Int, Int),
 ) -> CommandRendering {
-  draw_raw(cmd, renderer, mesh, params, scissor, viewport)
+  let CommandRendering(handle) = cmd
+
+  draw_raw(handle, renderer.handle, mesh.handle, params, scissor, viewport)
+
   cmd
 }
 
 pub fn create_drawer(
-  cmd: CommandRendering,
-  renderer: Renderer(material, frame_params, draw_params),
-  frame_params: frame_params,
+  cmd cmd: CommandRendering,
+  renderer renderer: Renderer(material, frame_params, draw_params),
+  params frame_params: frame_params,
 ) -> Drawer(draw_params) {
-  renderer.set_frame_params(renderer, frame_params)
+  let CommandRendering(handle) = cmd
+
+  set_frame_params(handle, renderer.handle, frame_params)
 
   fn(
     mesh: Mesh,
@@ -206,4 +228,9 @@ pub fn create_drawer(
     draw(cmd, renderer, mesh, params, scissor, viewport)
     Nil
   }
+}
+
+pub fn handle(command: Command) -> Dynamic {
+  let Command(handle) = command
+  handle
 }

@@ -1,20 +1,15 @@
-#include "rendering.h"
+#include "command.h"
 
 #include "device.h"
+#include "image.h"
 #include "mesh.h"
 #include "params.h"
 #include "renderer.h"
 #include "utils.h"
-#include "window.h"
 
-static VkCommandBuffer render_cmds[FRAMES_IN_FLIGHT];
-static VkFence render_fences[FRAMES_IN_FLIGHT];
-static VkCommandPool g_render_cmd_pool = VK_NULL_HANDLE;
-static uint32_t frame = FRAMES_IN_FLIGHT - 1;
+static VkCommandPool g_cmd_pool = VK_NULL_HANDLE;
 
-static VkSemaphore finished_rendering_sem = VK_NULL_HANDLE;
-static uint64_t render_timeline_value = 0;
-static uint64_t frame_render_value[FRAMES_IN_FLIGHT] = {0};
+static ErlNifResourceType* COMMAND_RES_TYPE = NULL;
 
 static PFN_vkCmdBindShadersEXT vkCmdBindShadersEXT_;
 static PFN_vkCmdSetVertexInputEXT vkCmdSetVertexInputEXT_;
@@ -28,89 +23,49 @@ static PFN_vkCmdSetColorWriteMaskEXT vkCmdSetColorWriteMaskEXT_;
 static PFN_vkCmdSetColorBlendEquationEXT vkCmdSetColorBlendEquationEXT_;
 static PFN_vkCmdSetLogicOpEnableEXT vkCmdSetLogicOpEnableEXT_;
 
-static image_res_t* get_image_from_option(ErlNifEnv* env, ERL_NIF_TERM term) {
-    if (enif_is_atom(env, term)) {
-        char a[16];
-        if (enif_get_atom(env, term, a, sizeof(a), ERL_NIF_LATIN1) &&
-            strcmp(a, "none") == 0) {
-            return NULL;
-        }
-    }
+static void command_res_dtor(ErlNifEnv* env, void* obj) {
+    (void)env;
 
-    const ERL_NIF_TERM* elems = NULL;
-    int arity = 0;
-    if (enif_get_tuple(env, term, &arity, &elems) && arity == 2) {
-        char tag[16];
-        if (enif_is_atom(env, elems[0]) &&
-            enif_get_atom(env, elems[0], tag, sizeof(tag), ERL_NIF_LATIN1) &&
-            strcmp(tag, "some") == 0) {
-            return get_image_from_term(env, elems[1]);
-        }
-    }
-
-    return get_image_from_term(env, term);
-}
-
-int init_rendering_res() {
-    memset(render_cmds, 0, sizeof(render_cmds));
-    memset(render_fences, 0, sizeof(render_fences));
-    memset(frame_render_value, 0, sizeof(frame_render_value));
-
-    render_timeline_value = 0;
+    command_res_t* res = (command_res_t*)obj;
 
     VkDevice dev = g_device.logical_device;
 
-    VkCommandPoolCreateInfo pool_info = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .pNext = NULL,
-        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = g_device.graphics_family,
-    };
-
-    if (vkCreateCommandPool(dev, &pool_info, NULL, &g_render_cmd_pool) !=
-        VK_SUCCESS) {
-        destroy_rendering_res();
-        return -1;
-    }
-
-    VkCommandBufferAllocateInfo alloc_info = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .pNext = NULL,
-        .commandPool = g_render_cmd_pool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = FRAMES_IN_FLIGHT,
-    };
-
-    if (vkAllocateCommandBuffers(dev, &alloc_info, render_cmds) != VK_SUCCESS) {
-        destroy_rendering_res();
-        return -1;
-    }
-
-    VkSemaphoreTypeCreateInfo timeline_ci = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
-        .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
-        .initialValue = 0,
-    };
-
-    VkSemaphoreCreateInfo sem_info = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = &timeline_ci,
-    };
-
-    if (vkCreateSemaphore(dev, &sem_info, NULL, &finished_rendering_sem) !=
-        VK_SUCCESS) {
-        destroy_rendering_res();
-        return -1;
-    }
-
-    VkFenceCreateInfo fence_info = {0};
-    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    vkDeviceWaitIdle(dev);
 
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        if (vkCreateFence(dev, &fence_info, NULL, &render_fences[i]) !=
+        if (res->fences[i]) vkDestroyFence(dev, res->fences[i], NULL);
+
+        if (res->cmds[i])
+            vkFreeCommandBuffers(dev, g_cmd_pool, 1, &res->cmds[i]);
+
+        if (res->finished_sem[i])
+            vkDestroySemaphore(dev, res->finished_sem[i], NULL);
+
+        res->fences[i] = VK_NULL_HANDLE;
+        res->cmds[i] = VK_NULL_HANDLE;
+    }
+}
+
+void destroy_command_pool() {
+    if (g_cmd_pool == VK_NULL_HANDLE) return;
+
+    vkDestroyCommandPool(g_device.logical_device, g_cmd_pool, NULL);
+    g_cmd_pool = VK_NULL_HANDLE;
+}
+
+int nif_init_command_res(ErlNifEnv* env) {
+    VkDevice dev = g_device.logical_device;
+
+    if (g_cmd_pool == VK_NULL_HANDLE) {
+        VkCommandPoolCreateInfo pool_ci = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = g_device.graphics_family,
+        };
+
+        if (vkCreateCommandPool(dev, &pool_ci, NULL, &g_cmd_pool) !=
             VK_SUCCESS) {
-            destroy_rendering_res();
+            g_cmd_pool = VK_NULL_HANDLE;
             return -1;
         }
     }
@@ -154,41 +109,93 @@ int init_rendering_res() {
         return -1;
     }
 
+    COMMAND_RES_TYPE = enif_open_resource_type(
+        env, "fluo_nif", "command_res", command_res_dtor,
+        ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER, NULL);
+
     return 0;
 }
 
-void destroy_rendering_res() {
+ERL_NIF_TERM nif_create_command(ErlNifEnv* env, int argc,
+                                const ERL_NIF_TERM argv[]) {
+    if (argc != 0) return enif_make_badarg(env);
+
     VkDevice dev = g_device.logical_device;
+
+    VkCommandBufferAllocateInfo alloc_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .pNext = NULL,
+        .commandPool = g_cmd_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = FRAMES_IN_FLIGHT,
+    };
+
+    command_res_t* res =
+        enif_alloc_resource(COMMAND_RES_TYPE, sizeof(command_res_t));
+
+    res->frame = 0;
+
+    if (vkAllocateCommandBuffers(dev, &alloc_info, res->cmds) != VK_SUCCESS) {
+        enif_release_resource(res);
+        return enif_make_badarg(env);
+    }
+
+    VkFenceCreateInfo fence_info = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+    };
+
+    VkSemaphoreCreateInfo sem_info = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = NULL,
+        .flags = 0,
+    };
 
     for (uint32_t i = 0; i < FRAMES_IN_FLIGHT; i++) {
-        if (render_fences[i]) vkDestroyFence(dev, render_fences[i], NULL);
+        if (vkCreateFence(dev, &fence_info, NULL, &res->fences[i]) !=
+            VK_SUCCESS) {
+            enif_release_resource(res);
+            return enif_make_badarg(env);
+        }
 
-        render_fences[i] = VK_NULL_HANDLE;
-        render_cmds[i] = VK_NULL_HANDLE;
+        if (vkCreateSemaphore(dev, &sem_info, NULL, &res->finished_sem[i]) !=
+            VK_SUCCESS) {
+            enif_release_resource(res);
+            return enif_make_badarg(env);
+        }
     }
 
-    if (finished_rendering_sem) {
-        vkDestroySemaphore(dev, finished_rendering_sem, NULL);
-        finished_rendering_sem = VK_NULL_HANDLE;
-    }
+    ERL_NIF_TERM term = enif_make_resource(env, res);
 
-    if (g_render_cmd_pool) {
-        vkDestroyCommandPool(dev, g_render_cmd_pool, NULL);
-        g_render_cmd_pool = VK_NULL_HANDLE;
-    }
+    enif_release_resource(res);
+
+    return term;
 }
 
-ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc,
-                                 const ERL_NIF_TERM argv[]) {
-    frame = (frame + 1) % FRAMES_IN_FLIGHT;
+command_res_t* get_command_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
+    command_res_t* res = NULL;
 
-    VkDevice dev = g_device.logical_device;
+    if (!enif_get_resource(env, term, COMMAND_RES_TYPE, (void**)&res))
+        return NULL;
 
-    vkWaitForFences(dev, 1, &render_fences[frame], VK_TRUE, UINT64_MAX);
-    vkResetFences(dev, 1, &render_fences[frame]);
+    if (!res) return NULL;
 
-    VkCommandBuffer cmd = render_cmds[frame];
+    return res;
+}
 
+ERL_NIF_TERM nif_start_command_recording(ErlNifEnv* env, int argc,
+                                         const ERL_NIF_TERM argv[]) {
+    command_res_t* cmd_res = get_command_from_term(env, argv[0]);
+    if (!cmd_res) return enif_make_badarg(env);
+
+    uint32_t frame = cmd_res->frame;
+
+    vkWaitForFences(g_device.logical_device, 1, &cmd_res->fences[frame],
+                    VK_TRUE, UINT64_MAX);
+
+    vkResetFences(g_device.logical_device, 1, &cmd_res->fences[frame]);
+
+    VkCommandBuffer cmd = cmd_res->cmds[frame];
     vkResetCommandBuffer(cmd, 0);
 
     VkCommandBufferBeginInfo begin = {
@@ -197,9 +204,72 @@ ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc,
 
     THROW_VK_ERROR(env, vkBeginCommandBuffer(cmd, &begin));
 
-    image_res_t* color_image = get_image_from_option(env, argv[0]);
+    return enif_make_atom(env, "ok");
+}
 
-    image_res_t* depth_image = get_image_from_option(env, argv[1]);
+ERL_NIF_TERM nif_end_command_recording(ErlNifEnv* env, int argc,
+                                       const ERL_NIF_TERM argv[]) {
+    const command_res_t* cmd_res = get_command_from_term(env, argv[0]);
+
+    if (!cmd_res) return enif_make_badarg(env);
+
+    THROW_VK_ERROR(env, vkEndCommandBuffer(cmd_res->cmds[cmd_res->frame]));
+
+    return enif_make_atom(env, "ok");
+}
+
+ERL_NIF_TERM nif_submit_command(ErlNifEnv* env, int argc,
+                                const ERL_NIF_TERM argv[]) {
+    command_res_t* cmd_res = get_command_from_term(env, argv[0]);
+
+    if (!cmd_res) return enif_make_badarg(env);
+
+    const uint32_t frame = cmd_res->frame;
+
+    VkCommandBuffer cmd = cmd_res->cmds[frame];
+
+    VkCommandBufferSubmitInfo cmd_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+        .pNext = NULL,
+        .commandBuffer = cmd,
+        .deviceMask = 0,
+    };
+
+    VkSemaphoreSubmitInfo signal_info = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .value = 0,
+        .semaphore = cmd_res->finished_sem[frame],
+        .stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+        .deviceIndex = 0,
+    };
+
+    VkSubmitInfo2 submit = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &cmd_info,
+        .signalSemaphoreInfoCount = 1,
+        .pSignalSemaphoreInfos = &signal_info,
+    };
+
+    THROW_VK_ERROR(env, vkQueueSubmit2(g_device.graphics_queue, 1, &submit,
+                                       cmd_res->fences[frame]));
+
+    cmd_res->frame = (frame + 1) % FRAMES_IN_FLIGHT;
+
+    return enif_make_atom(env, "ok");
+}
+
+ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc,
+                                 const ERL_NIF_TERM argv[]) {
+    const command_res_t* cmd_res = get_command_from_term(env, argv[0]);
+
+    if (!cmd_res) return enif_make_badarg(env);
+
+    VkCommandBuffer cmd = cmd_res->cmds[cmd_res->frame];
+
+    image_res_t* color_image = get_image_from_option(env, argv[1]);
+
+    image_res_t* depth_image = get_image_from_option(env, argv[2]);
 
     if (!color_image && !depth_image) return enif_make_badarg(env);
 
@@ -268,72 +338,45 @@ ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc,
 
 ERL_NIF_TERM nif_end_rendering(ErlNifEnv* env, int argc,
                                const ERL_NIF_TERM argv[]) {
-    (void)argc;
-    (void)argv;
+    const command_res_t* cmd_res = get_command_from_term(env, argv[0]);
 
-    VkQueue q = g_device.graphics_queue;
-    VkCommandBuffer cmd = render_cmds[frame];
+    if (!cmd_res) return enif_make_badarg(env);
+
+    VkCommandBuffer cmd = cmd_res->cmds[cmd_res->frame];
 
     vkCmdEndRendering(cmd);
-
-    THROW_VK_ERROR(env, vkEndCommandBuffer(cmd));
-
-    VkCommandBufferSubmitInfo cmd_info = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-        .pNext = NULL,
-        .commandBuffer = cmd,
-        .deviceMask = 0,
-    };
-
-    uint64_t signal_value = ++render_timeline_value;
-    frame_render_value[frame] = signal_value;
-
-    VkSemaphoreSubmitInfo signal_info = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .semaphore = finished_rendering_sem,
-        .value = signal_value,
-        .stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
-        .deviceIndex = 0,
-    };
-
-    VkSubmitInfo2 submit = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos = &cmd_info,
-        .signalSemaphoreInfoCount = 1,
-        .pSignalSemaphoreInfos = &signal_info,
-    };
-
-    THROW_VK_ERROR(env, vkQueueSubmit2(q, 1, &submit, render_fences[frame]));
 
     return enif_make_atom(env, "ok");
 }
 
 ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
                            const ERL_NIF_TERM argv[]) {
-    const renderer_res_t* renderer = get_renderer_from_term(env, argv[0]);
+    const command_res_t* cmd_res = get_command_from_term(env, argv[0]);
+
+    if (!cmd_res) return enif_make_badarg(env);
+
+    const renderer_res_t* renderer = get_renderer_from_term(env, argv[1]);
 
     if (!renderer) return enif_make_badarg(env);
 
-    const mesh_res_t* mesh = get_mesh_from_term(env, argv[1]);
+    const mesh_res_t* mesh = get_mesh_from_term(env, argv[2]);
 
     if (!mesh) return enif_make_badarg(env);
 
-    const ERL_NIF_TERM params = argv[2];
-
-    update_params_for_frame(env, renderer, frame, params);
+    const ERL_NIF_TERM params = argv[3];
+    // TODO: use params
 
     VkViewport viewport = {0};
 
-    if (!get_viewport_from_term(env, argv[3], &viewport))
+    if (!get_viewport_from_term(env, argv[4], &viewport))
         return enif_make_badarg(env);
 
     VkRect2D scissor = {0};
 
-    if (!get_scissor_from_term(env, argv[4], &scissor))
+    if (!get_scissor_from_term(env, argv[5], &scissor))
         return enif_make_badarg(env);
 
-    VkCommandBuffer cmd = render_cmds[frame];
+    VkCommandBuffer cmd = cmd_res->cmds[cmd_res->frame];
 
     VkShaderStageFlagBits stages[] = {
         VK_SHADER_STAGE_VERTEX_BIT,
@@ -353,7 +396,8 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
 
     PushConstants push_constants = {
         .material_index = renderer->material_index,
-        .params_index = get_params_index_for_frame(renderer, frame),
+        .frame_params_index = get_frame_params_index(renderer, cmd_res->frame),
+        // TODO: add per draw params
     };
 
     vkCmdPushConstants(cmd, g_device.pipeline_layout, VK_SHADER_STAGE_ALL, 0,
@@ -435,117 +479,6 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
     vkCmdSetLogicOpEnableEXT_(cmd, VK_FALSE);
 
     vkCmdDrawIndexed(cmd, mesh->indices_count, 1, 0, 0, 0);
-
-    return enif_make_atom(env, "ok");
-}
-
-ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
-                              const ERL_NIF_TERM argv[]) {
-    if (argc != 2) return enif_make_badarg(env);
-
-    window_res_t* window = get_window_from_term(env, argv[0]);
-
-    if (!window) return enif_make_badarg(env);
-
-    image_res_t* color_image = get_image_from_term(env, argv[1]);
-
-    if (!color_image) return enif_make_badarg(env);
-
-    VkDevice dev = g_device.logical_device;
-
-    VkCommandBuffer blit_cmd = window->blit_cmds[frame];
-
-    vkWaitForFences(dev, 1, &window->blit_fences[frame], VK_TRUE, UINT64_MAX);
-    vkResetFences(dev, 1, &window->blit_fences[frame]);
-
-    uint32_t img_idx =
-        get_curr_swapchain_idx(window, window->image_available_sem[frame]);
-
-    if (img_idx == UINT32_MAX) return enif_make_atom(env, "out_of_date");
-
-    vkResetCommandBuffer(blit_cmd, 0);
-
-    VkCommandBufferBeginInfo begin = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-    };
-
-    THROW_VK_ERROR(env, vkBeginCommandBuffer(blit_cmd, &begin));
-
-    image_res_t* swapchain_image = &window->swapchain_images[img_idx];
-
-    transition_image_layout(color_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                            blit_cmd);
-
-    transition_image_layout(swapchain_image,
-                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, blit_cmd);
-
-    blit_image(*color_image, *swapchain_image, blit_cmd);
-
-    transition_iamge_to_optimal_layout(swapchain_image, blit_cmd);
-
-    transition_iamge_to_optimal_layout(color_image, blit_cmd);
-
-    THROW_VK_ERROR(env, vkEndCommandBuffer(blit_cmd));
-
-    VkCommandBufferSubmitInfo cmd_info = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-        .commandBuffer = blit_cmd,
-        .deviceMask = 0,
-    };
-
-    VkSemaphoreSubmitInfo wait_sems[2] = {
-        {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-            .semaphore = finished_rendering_sem,
-            .value = frame_render_value[frame],
-            .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-        },
-        {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-            .semaphore = window->image_available_sem[frame],
-            .value = 0,
-            .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-        },
-    };
-
-    VkSemaphoreSubmitInfo signal_sem = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .semaphore = window->finished_blitting_sem[img_idx],
-        .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-        .value = 0,
-    };
-
-    VkSubmitInfo2 submit = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .waitSemaphoreInfoCount = 2,
-        .pWaitSemaphoreInfos = wait_sems,
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos = &cmd_info,
-        .signalSemaphoreInfoCount = 1,
-        .pSignalSemaphoreInfos = &signal_sem,
-    };
-
-    THROW_VK_ERROR(env, vkQueueSubmit2(g_device.graphics_queue, 1, &submit,
-                                       window->blit_fences[frame]));
-
-    VkPresentInfoKHR present = {
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &window->finished_blitting_sem[img_idx],
-        .swapchainCount = 1,
-        .pSwapchains = &window->swapchain,
-        .pImageIndices = &img_idx,
-    };
-
-    VkResult pr = vkQueuePresentKHR(g_device.present_queue, &present);
-
-    if (pr == VK_ERROR_OUT_OF_DATE_KHR)
-        return enif_make_atom(env, "out_of_date");
-
-    if (pr != VK_SUCCESS && pr != VK_SUBOPTIMAL_KHR) {
-        THROW_VK_ERROR(env, pr);
-    }
 
     return enif_make_atom(env, "ok");
 }

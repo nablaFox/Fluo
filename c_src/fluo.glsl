@@ -3,7 +3,7 @@
 #extension GL_EXT_nonuniform_qualifier : require
 
 #define MATERIAL_BINDING 0
-#define PARAMS_BINDING 1
+#define FRAME_PARAMS_BINDING 1
 #define TEXTURE_BINDING 2
 
 layout(push_constant) uniform constants {
@@ -15,13 +15,13 @@ layout(push_constant) uniform constants {
  layout(set = 0, binding = MATERIAL_BINDING) \
  uniform Material Struct uMaterial[]
 
-#define DEF_PARAMS(Struct) \
- layout(set = 0, binding = PARAMS_BINDING) \
+#define DEF_FRAME_PARAMS(Struct) \
+ layout(set = 0, binding = FRAME_PARAMS_BINDING) \
  uniform Params Struct uParams[]
 
 #define MATERIAL (uMaterial[pc.material_index])
 
-#define PARAMS (uParams[pc.params_index])
+#define F_PARAMS (uParams[pc.params_index])
 
 layout(set = 0, binding = TEXTURE_BINDING) uniform sampler2D uTextures[];
 

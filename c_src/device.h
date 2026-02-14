@@ -8,7 +8,7 @@
 #define MAX_BINDLESS_RESOURCES 65536
 
 #define MATERIAL_BINDING 0
-#define PARAMS_BINDING 1
+#define FRAME_PARAMS_BINDING 1
 #define TEXTURE_BINDING 2
 
 struct Device {

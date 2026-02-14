@@ -6,6 +6,11 @@
 
 static ErlNifResourceType* MESH_RES_TYPE = NULL;
 
+static ERL_NIF_TERM ATOM_MESH_HANDLE;
+static ERL_NIF_TERM ATOM_VEC2;
+static ERL_NIF_TERM ATOM_VEC3;
+static ERL_NIF_TERM ATOM_VERTEX;
+
 static void mesh_res_dtor(ErlNifEnv* env, void* obj) {
     (void)env;
 
@@ -22,16 +27,22 @@ int nif_init_mesh_res(ErlNifEnv* env) {
         enif_open_resource_type(env, "fluo_nif", "mesh_res", mesh_res_dtor,
                                 ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER, NULL);
 
+    ATOM_MESH_HANDLE = enif_make_atom(env, "mesh_handle");
+    ATOM_VEC2 = enif_make_atom(env, "vec2");
+    ATOM_VEC3 = enif_make_atom(env, "vec3");
+    ATOM_VERTEX = enif_make_atom(env, "vertex");
+
     return MESH_RES_TYPE ? 0 : -1;
 }
 
 static int decode_vec3(ErlNifEnv* env, ERL_NIF_TERM t, float* x, float* y,
                        float* z) {
-    const ERL_NIF_TERM* e;
+    const ERL_NIF_TERM* e = NULL;
     int arity = 0;
     if (!enif_get_tuple(env, t, &arity, &e)) return 0;
     if (arity != 4) return 0;
-    if (!is_tag(env, e[0], "vec3", "Vec3")) return 0;
+
+    if (!enif_is_identical(e[0], ATOM_VEC3)) return 0;
 
     return decode_f32(env, e[1], x) && decode_f32(env, e[2], y) &&
            decode_f32(env, e[3], z);
@@ -41,9 +52,9 @@ static int decode_vec2(ErlNifEnv* env, ERL_NIF_TERM t, float* x, float* y) {
     const ERL_NIF_TERM* e = NULL;
     int arity = 0;
     if (!enif_get_tuple(env, t, &arity, &e)) return 0;
-
     if (arity != 3) return 0;
-    if (!is_tag(env, e[0], "vec2", "Vec2")) return 0;
+
+    if (!enif_is_identical(e[0], ATOM_VEC2)) return 0;
 
     double dx = 0.0, dy = 0.0;
     if (!enif_get_double(env, e[1], &dx)) return 0;
@@ -55,20 +66,18 @@ static int decode_vec2(ErlNifEnv* env, ERL_NIF_TERM t, float* x, float* y) {
 }
 
 static int decode_vertex(ErlNifEnv* env, ERL_NIF_TERM t, VertexGPU* out) {
-    const ERL_NIF_TERM* e;
+    const ERL_NIF_TERM* e = NULL;
     int arity = 0;
     if (!enif_get_tuple(env, t, &arity, &e)) return 0;
-
     if (arity != 4) return 0;
-    if (!is_tag(env, e[0], "vertex", "Vertex")) return 0;
+
+    if (!enif_is_identical(e[0], ATOM_VERTEX)) return 0;
 
     if (!decode_vec3(env, e[1], &out->pos[0], &out->pos[1], &out->pos[2]))
         return 0;
-
     if (!decode_vec3(env, e[2], &out->normal[0], &out->normal[1],
                      &out->normal[2]))
         return 0;
-
     if (!decode_vec2(env, e[3], &out->uv[0], &out->uv[1])) return 0;
 
     return 1;
@@ -142,26 +151,17 @@ ERL_NIF_TERM nif_create_mesh(ErlNifEnv* env, int argc,
 }
 
 mesh_res_t* get_mesh_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
-    if (!env) return NULL;
-
-    mesh_res_t* res = NULL;
-    ERL_NIF_TERM handle_term = term;
-
     const ERL_NIF_TERM* elems = NULL;
     int arity = 0;
 
-    if (enif_get_tuple(env, term, &arity, &elems) && arity > 0) {
-        handle_term = elems[arity - 1];
-    }
+    if (!enif_get_tuple(env, term, &arity, &elems)) return NULL;
+    if (arity != 2) return NULL;
 
-    if (!enif_get_resource(env, handle_term, MESH_RES_TYPE, (void**)&res))
+    if (!enif_is_identical(elems[0], ATOM_MESH_HANDLE)) return NULL;
+
+    mesh_res_t* res = NULL;
+    if (!enif_get_resource(env, elems[1], MESH_RES_TYPE, (void**)&res))
         return NULL;
-
-    if (!res) return NULL;
-
-    if (res->vertices_count == 0 || res->indices_count == 0) return NULL;
-    if (res->vertex_buffer.buffer == VK_NULL_HANDLE) return NULL;
-    if (res->index_buffer.buffer == VK_NULL_HANDLE) return NULL;
 
     return res;
 }
