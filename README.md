@@ -10,7 +10,7 @@ Currently under development.
 ```gleam
 import fluo/mesh
 import fluo/render.{type Renderer}
-import fluo/window.{drawer}
+import fluo/window.{draw}
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
@@ -18,9 +18,9 @@ pub fn main() {
   let triangle = mesh.load_obj("triangle.obj")
 
   // nil material 
-  // nil frame parameter
-  // float draw parameter
-  let renderer: Renderer(_, _, Float) =
+  // float frame parameter
+  // nil draw parameter
+  let renderer: Renderer(Nil, Float, Nil) =
     render.create_renderer(
       vert: "shader.vert",
       frag: "shader.frag",
@@ -34,7 +34,7 @@ pub fn main() {
     _ -> alpha
   }
 
-  triangle |> drawer(ctx, renderer, Nil)(alpha)
+  triangle |> draw(ctx, renderer, alpha)
 
   alpha
 }
@@ -51,12 +51,12 @@ void main() {
 #### Fragment shader (shaders/shader.frag)
 
 ```glsl
-DEF_DRAW_PARAMS({
+DEF_FRAME_PARAMS({
     float alpha;
 });
 
 void main() { 
-    out_color = vec4(vec3(1.0, 0.0, 0.0) * PARAMS.alpha, 1.0);
+    out_color = vec4(vec3(1.0, 0.0, 0.0) * F_PARAMS.alpha, 1.0);
 }
 ```
 

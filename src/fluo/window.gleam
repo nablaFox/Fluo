@@ -129,6 +129,23 @@ pub fn drawer(
   }
 }
 
+pub fn draw(
+  mesh: Mesh,
+  ctx: Context,
+  renderer: Renderer(material, frame_params, Nil),
+  frame_params: frame_params,
+) -> Nil {
+  let viewport = #(0, 0, ctx.width, ctx.height)
+  let scissor = #(0, 0, ctx.width, ctx.height)
+
+  mesh
+  |> render.create_drawer(ctx.frame, renderer, frame_params)(
+    Nil,
+    scissor,
+    viewport,
+  )
+}
+
 pub type Context {
   Context(
     delta: Float,

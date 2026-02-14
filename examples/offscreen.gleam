@@ -5,7 +5,7 @@ import fluo/render.{type Renderer}
 pub fn main() {
   let triangle = mesh.load_obj("assets/suzanne.obj")
 
-  let renderer: Renderer(_, _, Float) =
+  let renderer: Renderer(Nil, Float, Nil) =
     render.create_renderer(
       vert: "shader.vert",
       frag: "shader.frag",
@@ -23,9 +23,8 @@ pub fn main() {
     use frame <- render.render_color_frame(cmd, color)
 
     triangle
-    |> render.create_drawer(frame, renderer, Nil)(1.0, viewport, scissor)
-
-    color
+    |> render.create_drawer(frame, renderer, 1.0)(Nil, viewport, scissor)
   }
-  |> image.save_color_image("output.png")
+
+  image.save_color_image(color, "output.png")
 }

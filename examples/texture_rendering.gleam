@@ -1,7 +1,7 @@
 import fluo/mesh.{Vec2, Vec3, Vertex}
-import fluo/render
-import fluo/texture
-import fluo/window.{drawer}
+import fluo/render.{type Renderer}
+import fluo/texture.{type Texture}
+import fluo/window.{draw}
 import gleam/bit_array
 import gleam/int
 import gleam/list
@@ -32,14 +32,14 @@ pub fn main() {
     |> texture.create_texture(width, height)
   }
 
-  let triangle_renderer: render.Renderer(_, _, Nil) =
+  let triangle_renderer: Renderer(Texture, Nil, Nil) =
     render.create_renderer(
       vert: "shader.vert",
       frag: "texture.frag",
       material: texture,
     )
 
-  let texture_renderer: render.Renderer(_, _, Float) =
+  let texture_renderer: Renderer(Nil, Nil, Float) =
     render.create_renderer(
       vert: "shader.vert",
       frag: "shader.frag",
@@ -70,5 +70,5 @@ pub fn main() {
     _ -> Nil
   }
 
-  triangle |> drawer(ctx, triangle_renderer, Nil)(Nil)
+  triangle |> draw(ctx, triangle_renderer, Nil)
 }
