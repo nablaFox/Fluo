@@ -1,10 +1,6 @@
-import fluo/image.{
-  type ColorImage, type DepthImage, create_color_image, create_depth_image,
-}
+import fluo/image.{type ColorImage, type DepthImage}
 import fluo/mesh.{type Mesh}
-import fluo/render.{
-  type Frame, type Renderer, create_drawer, end_rendering, start_rendering,
-}
+import fluo/render.{type Frame, type Renderer}
 import gleam/dynamic.{type Dynamic}
 
 pub opaque type WindowHandle {
@@ -103,8 +99,8 @@ pub fn create_window(
   height height: Int,
 ) -> Window {
   let handle = create_window_raw(title, width, height)
-  let color = create_color_image(width, height)
-  let depth = create_depth_image(width, height)
+  let color = image.create_color_image(width, height)
+  let depth = image.create_depth_image(width, height)
 
   let handle = WindowHandle(handle)
 
@@ -115,38 +111,24 @@ pub fn present(window: Window) -> Nil {
   swap(window, window.color)
 }
 
-pub fn width(window: Window) -> Int {
-  window.width
-}
-
-pub fn height(window: Window) -> Int {
-  window.height
-}
-
-pub fn title(window: Window) -> String {
-  window.title
-}
-
-pub fn color(window: Window) -> ColorImage {
-  window.color
-}
-
-pub fn depth(window: Window) -> DepthImage {
-  window.depth
-}
-
 pub fn drawer(
   ctx: Context,
   renderer: Renderer(material, frame_params, draw_params),
   frame_params: frame_params,
-) -> fn(Mesh, draw_params) -> Nil {
+) -> fn(Mesh, draw_params) -> Context {
   fn(mesh, draw_params) {
     let viewport = #(0, 0, ctx.width, ctx.height)
     let scissor = #(0, 0, ctx.width, ctx.height)
 
-    let draw = create_drawer(ctx.frame, renderer, frame_params)
+    let frame =
+      mesh
+      |> render.create_drawer(ctx.frame, renderer, frame_params)(
+        draw_params,
+        scissor,
+        viewport,
+      )
 
-    draw(mesh, draw_params, scissor, viewport)
+    Context(..ctx, frame:)
   }
 }
 
@@ -172,7 +154,9 @@ pub fn loop(window: Window, state: state, callback: fn(Context, state) -> state)
   case window_should_close(window) {
     True -> Nil
     False -> {
-      let frame = start_rendering(window.color, window.depth)
+      let cmd = render.create_command()
+
+      let frame = cmd.create_frame(window.color, window.depth)
 
       let delta = delta(window)
 
@@ -210,7 +194,9 @@ pub fn loop(window: Window, state: state, callback: fn(Context, state) -> state)
 
       let state = callback(ctx, state)
 
-      end_rendering(frame)
+      cmd.end_frame(frame)
+
+      cmd.submit()
 
       present(window)
 

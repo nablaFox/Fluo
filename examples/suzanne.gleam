@@ -1,7 +1,7 @@
 import fluo/mesh
 import fluo/render
 import fluo/texture
-import fluo/window
+import fluo/window.{drawer}
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
@@ -19,5 +19,7 @@ pub fn main() {
 
   use ctx, _ <- window.loop(window, Nil)
 
-  suzanne |> ctx.draw(renderer, Nil)(Nil)
+  suzanne |> drawer(ctx, renderer, Nil)(Nil)
+
+  Nil
 }

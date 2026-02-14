@@ -24,17 +24,21 @@ fn game_loop(
   case window.window_should_close(window1) {
     True -> Nil
     False -> {
-      let color = window.color(window1)
-      let width = window.width(window1)
-      let height = window.height(window1)
+      let color = window1.color
 
-      let frame = render.start_color_rendering(color)
+      let cmd = render.create_command()
 
-      let draw = render.create_drawer(frame, renderer, Nil)
+      let frame = cmd.create_color_frame(color)
 
-      draw(mesh, alpha, #(0, 0, width, height), #(0, 0, width, height))
+      let viewport = #(0, 0, window1.width, window1.height)
+      let scissor = #(0, 0, window1.width, window1.height)
 
-      render.end_rendering(frame)
+      mesh
+      |> render.create_drawer(frame, renderer, Nil)(alpha, viewport, scissor)
+
+      cmd.end_frame(frame)
+
+      cmd.submit()
 
       window.present(window1)
       window.swap(window2, color)

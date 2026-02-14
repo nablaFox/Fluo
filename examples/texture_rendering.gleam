@@ -32,28 +32,48 @@ pub fn main() {
     |> texture.create_texture(width, height)
   }
 
-  let triangle_renderer =
+  let triangle_renderer: render.Renderer(_, _, Nil) =
     render.create_renderer(
       vert: "shader.vert",
       frag: "texture.frag",
       material: texture,
     )
 
-  let texture_renderer =
+  let texture_renderer: render.Renderer(_, _, Float) =
     render.create_renderer(
       vert: "shader.vert",
       frag: "shader.frag",
       material: Nil,
     )
 
+  let render_texture = fn(alpha) {
+    let tex_cmd = render.create_command()
+    let tex_viewport = #(0, 0, texture.color.width, texture.color.height)
+    let tex_scissor = #(0, 0, texture.color.width, texture.color.height)
+
+    let tex_frame = tex_cmd.create_color_frame(texture.color)
+
+    quad
+    |> render.create_drawer(tex_frame, texture_renderer, Nil)(
+      alpha,
+      tex_viewport,
+      tex_scissor,
+    )
+
+    tex_cmd.end_frame(tex_frame)
+
+    tex_cmd.submit()
+  }
+
   use ctx, _ <- window.loop(window, Nil)
 
   case ctx.keys_down {
-    [window.Space] -> {
-      quad |> drawer(ctx, texture_renderer, Nil)(Nil)
-    }
+    [window.KeyA] -> render_texture(0.5)
+    [window.KeyS] -> render_texture(1.0)
     _ -> Nil
   }
 
-  triangle |> drawer(ctx, triangle_renderer, Nil)(1.0)
+  triangle |> drawer(ctx, triangle_renderer, Nil)(Nil)
+
+  Nil
 }

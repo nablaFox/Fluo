@@ -1,6 +1,8 @@
 APP_PRIV_DIR := ../priv
 LIB_NAME := libfluo_nif
 SO := $(APP_PRIV_DIR)/$(LIB_NAME).so
+GLSL_SRC := fluo.glsl
+GLSL_DST := $(APP_PRIV_DIR)/fluo.glsl
 
 CXX := g++
 CXXFLAGS := -fPIC -Wall
@@ -44,7 +46,11 @@ $(SO): $(C_SRCS) $(CPP_SRCS)
 	  -o $@ \
 	  $(LDLIBS)
 
+$(GLSL_DST): $(GLSL_SRC)
+	mkdir -p $(APP_PRIV_DIR)
+	cp $(GLSL_SRC) $(GLSL_DST)
+
 clean:
-	rm -f $(SO)
+	rm -f $(SO) $(GLSL_DST)
 
 .PHONY: all clean
