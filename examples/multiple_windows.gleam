@@ -1,5 +1,6 @@
+import fluo/command
 import fluo/mesh
-import fluo/render.{type Renderer}
+import fluo/renderer.{type Renderer}
 import fluo/window
 
 pub fn main() {
@@ -9,7 +10,7 @@ pub fn main() {
   let triangle = mesh.load_obj("assets/suzanne.obj")
 
   let renderer: Renderer(Nil, Float, Nil) =
-    render.create_renderer(
+    renderer.create_renderer(
       material: Nil,
       vert: "shader.vert",
       frag: "shader.frag",
@@ -21,11 +22,11 @@ pub fn main() {
 fn game_loop(
   window1: window.Window,
   window2: window.Window,
-  renderer: render.Renderer(material, Float, Nil),
+  renderer: Renderer(material, Float, Nil),
   mesh: mesh.Mesh,
   alpha: Float,
 ) {
-  let cmd = render.create_command()
+  let cmd = command.create_command()
 
   let viewport = #(0, 0, window1.width, window1.height)
   let scissor = #(0, 0, window1.width, window1.height)
@@ -34,12 +35,12 @@ fn game_loop(
     True -> Nil
     False -> {
       {
-        use cmd <- render.run(cmd)
+        use cmd <- command.run(cmd)
 
-        use frame <- render.render_frame(cmd, window1.color, window1.depth)
+        use cmd <- command.render_frame(cmd, window1.color, window1.depth)
 
         mesh
-        |> render.create_drawer(frame, renderer, alpha)(Nil, viewport, scissor)
+        |> command.create_drawer(cmd, renderer, alpha)(Nil, viewport, scissor)
       }
 
       window.present(window1)

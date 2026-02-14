@@ -1,5 +1,5 @@
 import fluo/mesh
-import fluo/render.{type Renderer}
+import fluo/renderer.{type Renderer}
 import fluo/texture.{type Texture}
 import fluo/window.{draw}
 
@@ -11,7 +11,7 @@ pub fn main() {
   let texture = texture.load_texture("assets/brick.jpeg")
 
   let renderer: Renderer(Texture, Nil, Nil) =
-    render.create_renderer(
+    renderer.create_renderer(
       vert: "shader.vert",
       frag: "texture.frag",
       material: texture,

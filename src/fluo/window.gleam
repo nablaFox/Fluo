@@ -1,7 +1,8 @@
+import fluo/command.{type CommandRendering}
 import fluo/image.{type ColorImage, type DepthImage}
 import fluo/key.{type Key}
 import fluo/mesh.{type Mesh}
-import fluo/render.{type Frame, type Renderer}
+import fluo/renderer.{type Renderer}
 import gleam/dynamic.{type Dynamic}
 
 pub opaque type WindowHandle {
@@ -35,7 +36,7 @@ pub type Context {
     color: ColorImage,
     depth: DepthImage,
     title: String,
-    frame: Frame,
+    cmd: CommandRendering,
     capture_mouse: fn() -> Nil,
     release_mouse: fn() -> Nil,
     priv_: PrivateContext,
@@ -101,7 +102,7 @@ pub fn drawer(
     let scissor = #(0, 0, ctx.width, ctx.height)
 
     mesh
-    |> render.create_drawer(ctx.frame, renderer, frame_params)(
+    |> command.create_drawer(ctx.cmd, renderer, frame_params)(
       draw_params,
       scissor,
       viewport,
@@ -119,7 +120,7 @@ pub fn draw(
   let scissor = #(0, 0, ctx.width, ctx.height)
 
   mesh
-  |> render.create_drawer(ctx.frame, renderer, frame_params)(
+  |> command.create_drawer(ctx.cmd, renderer, frame_params)(
     Nil,
     scissor,
     viewport,
@@ -127,7 +128,7 @@ pub fn draw(
 }
 
 pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
-  let cmd = render.create_command()
+  let cmd = command.create_command()
 
   case window_should_close(window) {
     True -> Nil
@@ -150,9 +151,9 @@ pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
       }
 
       let state = {
-        use cmd <- render.run(cmd)
+        use cmd <- command.run(cmd)
 
-        use frame <- render.render_frame(cmd, window.color, window.depth)
+        use cmd <- command.render_frame(cmd, window.color, window.depth)
 
         let ctx =
           Context(
@@ -166,7 +167,7 @@ pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
             window.color,
             window.depth,
             window.title,
-            frame,
+            cmd,
             capture_mouse,
             release_mouse,
             PrivateContext,

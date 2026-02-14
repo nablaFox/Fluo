@@ -1,12 +1,13 @@
+import fluo/command
 import fluo/image
 import fluo/mesh
-import fluo/render.{type Renderer}
+import fluo/renderer.{type Renderer}
 
 pub fn main() {
   let triangle = mesh.load_obj("assets/suzanne.obj")
 
   let renderer: Renderer(Nil, Float, Nil) =
-    render.create_renderer(
+    renderer.create_renderer(
       vert: "shader.vert",
       frag: "shader.frag",
       material: Nil,
@@ -18,12 +19,12 @@ pub fn main() {
   let scissor = #(0, 0, color.width, color.height)
 
   {
-    use cmd <- render.run_immediate()
+    use cmd <- command.run_immediate()
 
-    use frame <- render.render_color_frame(cmd, color)
+    use cmd <- command.render_color_frame(cmd, color)
 
     triangle
-    |> render.create_drawer(frame, renderer, 1.0)(Nil, viewport, scissor)
+    |> command.create_drawer(cmd, renderer, 1.0)(Nil, viewport, scissor)
   }
 
   image.save_color_image(color, "output.png")

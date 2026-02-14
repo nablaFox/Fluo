@@ -10,7 +10,7 @@ Currently under development.
 ```gleam
 import fluo/key
 import fluo/mesh
-import fluo/render.{type Renderer}
+import fluo/renderer.{type Renderer}
 import fluo/window.{draw}
 
 pub fn main() {
@@ -18,11 +18,8 @@ pub fn main() {
 
   let triangle = mesh.load_obj("triangle.obj")
 
-  // nil material 
-  // float frame parameter
-  // nil draw parameter
   let renderer: Renderer(Nil, Float, Nil) =
-    render.create_renderer(
+    renderer.create_renderer(
       vert: "shader.vert",
       frag: "shader.frag",
       material: Nil,
@@ -35,7 +32,7 @@ pub fn main() {
     _ -> alpha
   }
 
-  triangle |> draw(ctx, renderer, alpha)
+  draw(triangle, ctx, renderer, alpha)
 
   alpha
 }

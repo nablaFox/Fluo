@@ -1,6 +1,7 @@
+import fluo/command
 import fluo/key
 import fluo/mesh.{Vec2, Vec3, Vertex}
-import fluo/render.{type Renderer}
+import fluo/renderer.{type Renderer}
 import fluo/texture.{type Texture}
 import fluo/window.{draw}
 import gleam/bit_array
@@ -34,14 +35,14 @@ pub fn main() {
   }
 
   let triangle_renderer: Renderer(Texture, Nil, Nil) =
-    render.create_renderer(
+    renderer.create_renderer(
       vert: "shader.vert",
       frag: "texture.frag",
       material: texture,
     )
 
   let texture_renderer: Renderer(Nil, Nil, Float) =
-    render.create_renderer(
+    renderer.create_renderer(
       vert: "shader.vert",
       frag: "shader.frag",
       material: Nil,
@@ -51,12 +52,12 @@ pub fn main() {
     let tex_viewport = #(0, 0, texture.color.width, texture.color.height)
     let tex_scissor = #(0, 0, texture.color.width, texture.color.height)
 
-    use cmd <- render.run_immediate()
+    use cmd <- command.run_immediate()
 
-    use frame <- render.render_color_frame(cmd, texture.color)
+    use cmd <- command.render_color_frame(cmd, texture.color)
 
     quad
-    |> render.create_drawer(frame, texture_renderer, Nil)(
+    |> command.create_drawer(cmd, texture_renderer, Nil)(
       alpha,
       tex_viewport,
       tex_scissor,
