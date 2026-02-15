@@ -11,6 +11,7 @@ static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     (void)priv;
     (void)info;
 
+    // TODO: make it return an int for error handling
     init_device();
 
     if (nif_init_image_res(env) < 0) {

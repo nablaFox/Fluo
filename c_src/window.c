@@ -494,6 +494,8 @@ ERL_NIF_TERM nif_window_delta_time(ErlNifEnv* env, int argc,
 
 ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
                               const ERL_NIF_TERM argv[]) {
+    enif_mutex_lock(g_vk_mutex);
+
     window_res_t* window = get_window_from_term(env, argv[0]);
     if (!window) return enif_make_badarg(env);
 
@@ -607,6 +609,8 @@ ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
     if (pr != VK_SUCCESS && pr != VK_SUBOPTIMAL_KHR) {
         THROW_VK_ERROR(env, pr);
     }
+
+    enif_mutex_unlock(g_vk_mutex);
 
     return enif_make_atom(env, "ok");
 }

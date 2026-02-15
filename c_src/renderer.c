@@ -384,6 +384,8 @@ uint32_t get_frame_params_index(const renderer_res_t* r, uint32_t frame) {
 
 ERL_NIF_TERM nif_set_frame_params(ErlNifEnv* env, int argc,
                                   const ERL_NIF_TERM argv[]) {
+    enif_mutex_lock(g_vk_mutex);
+
     const command_res_t* cmd_res = get_command_from_term(env, argv[0]);
 
     if (!cmd_res) return enif_make_badarg(env);
@@ -419,6 +421,8 @@ ERL_NIF_TERM nif_set_frame_params(ErlNifEnv* env, int argc,
                      (unsigned long long)ubo_size);
         return enif_make_badarg(env);
     }
+
+    enif_mutex_unlock(g_vk_mutex);
 
     return enif_make_atom(env, "ok");
 }

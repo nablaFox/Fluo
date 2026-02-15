@@ -13,6 +13,7 @@
 #include <GLFW/glfw3.h>
 
 struct Device g_device = {0};
+ErlNifMutex* g_vk_mutex = NULL;
 
 #ifdef DEBUG
 static VKAPI_ATTR VkBool32 VKAPI_CALL
@@ -470,6 +471,8 @@ static void create_upload_cmd_pool(void) {
 }
 
 void init_device() {
+    g_vk_mutex = enif_mutex_create("vk-global");
+
     create_instance();
 #ifdef DEBUG
     create_debug_messenger();

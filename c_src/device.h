@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 
 #include "vk_mem_alloc.h"
+#include "erl_nif.h"
 
 #define MAX_BINDLESS_RESOURCES 65536
 
@@ -34,6 +35,8 @@ struct Device {
 };
 
 extern struct Device g_device;
+
+extern ErlNifMutex* g_vk_mutex;
 
 void init_device();
 void destroy_device();

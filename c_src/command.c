@@ -186,6 +186,8 @@ command_res_t* get_command_from_term(ErlNifEnv* env, ERL_NIF_TERM term) {
 
 ERL_NIF_TERM nif_start_command_recording(ErlNifEnv* env, int argc,
                                          const ERL_NIF_TERM argv[]) {
+    enif_mutex_lock(g_vk_mutex);
+
     command_res_t* cmd_res = get_command_from_term(env, argv[0]);
     if (!cmd_res) return enif_make_badarg(env);
 
@@ -205,22 +207,30 @@ ERL_NIF_TERM nif_start_command_recording(ErlNifEnv* env, int argc,
 
     THROW_VK_ERROR(env, vkBeginCommandBuffer(cmd, &begin));
 
+    enif_mutex_unlock(g_vk_mutex);
+
     return enif_make_atom(env, "ok");
 }
 
 ERL_NIF_TERM nif_end_command_recording(ErlNifEnv* env, int argc,
                                        const ERL_NIF_TERM argv[]) {
+    enif_mutex_lock(g_vk_mutex);
+
     const command_res_t* cmd_res = get_command_from_term(env, argv[0]);
 
     if (!cmd_res) return enif_make_badarg(env);
 
     THROW_VK_ERROR(env, vkEndCommandBuffer(cmd_res->cmds[cmd_res->frame]));
 
+    enif_mutex_unlock(g_vk_mutex);
+
     return enif_make_atom(env, "ok");
 }
 
 ERL_NIF_TERM nif_submit_command(ErlNifEnv* env, int argc,
                                 const ERL_NIF_TERM argv[]) {
+    enif_mutex_lock(g_vk_mutex);
+
     command_res_t* cmd_res = get_command_from_term(env, argv[0]);
 
     if (!cmd_res) return enif_make_badarg(env);
@@ -257,6 +267,8 @@ ERL_NIF_TERM nif_submit_command(ErlNifEnv* env, int argc,
 
     cmd_res->last_submitted_frame = frame;
     cmd_res->frame = (frame + 1) % FRAMES_IN_FLIGHT;
+
+    enif_mutex_unlock(g_vk_mutex);
 
     return enif_make_atom(env, "ok");
 }
@@ -340,6 +352,8 @@ ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc,
 
 ERL_NIF_TERM nif_end_rendering(ErlNifEnv* env, int argc,
                                const ERL_NIF_TERM argv[]) {
+    enif_mutex_lock(g_vk_mutex);
+
     const command_res_t* cmd_res = get_command_from_term(env, argv[0]);
 
     if (!cmd_res) return enif_make_badarg(env);
@@ -348,11 +362,15 @@ ERL_NIF_TERM nif_end_rendering(ErlNifEnv* env, int argc,
 
     vkCmdEndRendering(cmd);
 
+    enif_mutex_unlock(g_vk_mutex);
+
     return enif_make_atom(env, "ok");
 }
 
 ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
                            const ERL_NIF_TERM argv[]) {
+    enif_mutex_lock(g_vk_mutex);
+
     const command_res_t* cmd_res = get_command_from_term(env, argv[0]);
 
     if (!cmd_res) return enif_make_badarg(env);
@@ -481,6 +499,8 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
     vkCmdSetLogicOpEnableEXT_(cmd, VK_FALSE);
 
     vkCmdDrawIndexed(cmd, mesh->indices_count, 1, 0, 0, 0);
+
+    enif_mutex_unlock(g_vk_mutex);
 
     return enif_make_atom(env, "ok");
 }
