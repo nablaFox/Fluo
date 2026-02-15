@@ -13,7 +13,6 @@
 #include <GLFW/glfw3.h>
 
 struct Device g_device = {0};
-ErlNifMutex* g_vk_mutex = NULL;
 
 #ifdef DEBUG
 static VKAPI_ATTR VkBool32 VKAPI_CALL
@@ -471,8 +470,6 @@ static void create_upload_cmd_pool(void) {
 }
 
 void init_device() {
-    g_vk_mutex = enif_mutex_create("vk-global");
-
     create_instance();
 #ifdef DEBUG
     create_debug_messenger();
@@ -531,22 +528,34 @@ VkCommandBuffer begin_single_time_commands(void) {
 }
 
 int end_single_time_commands(VkCommandBuffer cmd) {
-    vkEndCommandBuffer(cmd);
+    int ok = 0;
+    enif_mutex_lock(g_vk_mutex);
 
-    VkSubmitInfo submit = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &cmd,
+    VkResult r = vkEndCommandBuffer(cmd);
+    if (r != VK_SUCCESS) goto out;
+
+    VkCommandBufferSubmitInfo cmd_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+        .commandBuffer = cmd,
     };
 
-    VkResult r = vkQueueSubmit(g_device.graphics_queue, 1, &submit, NULL);
+    VkSubmitInfo2 submit = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .pCommandBufferInfos = &cmd_info,
+        .commandBufferInfoCount = 1,
+    };
 
-    if (r != VK_SUCCESS) return 0;
+    r = vkQueueSubmit2(g_device.graphics_queue, 1, &submit, VK_NULL_HANDLE);
+    if (r != VK_SUCCESS) goto out;
 
-    vkDeviceWaitIdle(g_device.logical_device);
+    r = vkDeviceWaitIdle(g_device.logical_device);
+    if (r != VK_SUCCESS) goto out;
 
     vkFreeCommandBuffers(g_device.logical_device, g_device.upload_cmd_pool, 1,
                          &cmd);
+    ok = 1;
 
-    return r == VK_SUCCESS;
+out:
+    enif_mutex_unlock(g_vk_mutex);
+    return ok;
 }

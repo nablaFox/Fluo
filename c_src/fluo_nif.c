@@ -6,10 +6,17 @@
 #include "texture.h"
 #include "window.h"
 
+ErlNifMutex* g_vk_mutex = NULL;
+
 static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     (void)env;
     (void)priv;
     (void)info;
+
+    g_vk_mutex = enif_mutex_create("vk-global");
+    if (!g_vk_mutex) return -1;
+
+    enif_mutex_lock(g_vk_mutex);
 
     // TODO: make it return an int for error handling
     init_device();
@@ -37,6 +44,8 @@ static int load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     if (nif_init_texture_res(env) < 0) {
         return -1;
     }
+
+    enif_mutex_unlock(g_vk_mutex);
 
     return 0;
 }

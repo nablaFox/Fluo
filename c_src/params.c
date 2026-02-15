@@ -124,6 +124,14 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
             return 1;
         }
 
+        float v4[4];
+        if (read_f32_list(env, t, v4, 4)) {
+            *off = align_up(*off, 16);
+            if (!write_bytes(blob, blob_size, *off, v4, sizeof(v4))) return 0;
+            *off += sizeof(v4);
+            return 1;
+        }
+
         float m3[9];
         if (read_f32_list(env, t, m3, 9)) {
             *off = align_up(*off, 16);
@@ -263,8 +271,13 @@ int pack_std140_params_term(ErlNifEnv* env, ERL_NIF_TERM params_term,
 
     if (enif_get_tuple(env, params_term, &arity, &elems)) {
         for (int i = 0; i < arity; i++) {
-            if (!pack_std140_term(env, elems[i], blob, blob_size, &off))
+            if (!pack_std140_term(env, elems[i], blob, blob_size, &off)) {
+                enif_fprintf(stderr,
+                             "renderer: std140 pack failed for tuple element "
+                             "%d (size=%llu)\n",
+                             i, (unsigned long long)blob_size);
                 return 0;
+            }
         }
         return off <= blob_size;
     }

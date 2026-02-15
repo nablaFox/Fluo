@@ -494,8 +494,6 @@ ERL_NIF_TERM nif_window_delta_time(ErlNifEnv* env, int argc,
 
 ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
                               const ERL_NIF_TERM argv[]) {
-    enif_mutex_lock(g_vk_mutex);
-
     window_res_t* window = get_window_from_term(env, argv[0]);
     if (!window) return enif_make_badarg(env);
 
@@ -505,6 +503,8 @@ ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
     const command_res_t* cmd_res = get_command_from_term(env, argv[2]);
 
     if (!cmd_res) return enif_make_badarg(env);
+
+    enif_mutex_lock(g_vk_mutex);
 
     VkSemaphore cmd_finished_sem =
         cmd_res->finished_sem[cmd_res->last_submitted_frame];

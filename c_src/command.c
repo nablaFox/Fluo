@@ -229,8 +229,6 @@ ERL_NIF_TERM nif_end_command_recording(ErlNifEnv* env, int argc,
 
 ERL_NIF_TERM nif_submit_command(ErlNifEnv* env, int argc,
                                 const ERL_NIF_TERM argv[]) {
-    enif_mutex_lock(g_vk_mutex);
-
     command_res_t* cmd_res = get_command_from_term(env, argv[0]);
 
     if (!cmd_res) return enif_make_badarg(env);
@@ -261,6 +259,8 @@ ERL_NIF_TERM nif_submit_command(ErlNifEnv* env, int argc,
         .signalSemaphoreInfoCount = 1,
         .pSignalSemaphoreInfos = &signal_info,
     };
+
+    enif_mutex_lock(g_vk_mutex);
 
     THROW_VK_ERROR(env, vkQueueSubmit2(g_device.graphics_queue, 1, &submit,
                                        cmd_res->fences[frame]));
@@ -329,6 +329,8 @@ ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc,
         .layerCount = 1,
     };
 
+    enif_mutex_lock(g_vk_mutex);
+
     if (color_image != NULL) {
         rendering_info.colorAttachmentCount = 1;
         rendering_info.pColorAttachments = &draw_attach_info;
@@ -346,6 +348,8 @@ ERL_NIF_TERM nif_start_rendering(ErlNifEnv* env, int argc,
     }
 
     vkCmdBeginRendering(cmd, &rendering_info);
+
+    enif_mutex_unlock(g_vk_mutex);
 
     return enif_make_atom(env, "ok");
 }
