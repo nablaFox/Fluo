@@ -11,6 +11,7 @@ typedef struct {
     VkCommandBuffer cmds[FRAMES_IN_FLIGHT];
     VkSemaphore finished_sem[FRAMES_IN_FLIGHT];
     uint32_t frame;
+    uint32_t last_submitted_frame;
 } command_res_t;
 
 int nif_init_command_res(ErlNifEnv* env);

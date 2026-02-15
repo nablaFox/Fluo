@@ -226,17 +226,10 @@ static void pick_physical_device(void) {
             .pNext = NULL,
         };
 
-        VkPhysicalDeviceTimelineSemaphoreFeatures timeline_features = {
-            .sType =
-                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
-            .timelineSemaphore = VK_TRUE,
-            .pNext = &indexing_features,
-        };
-
         VkPhysicalDeviceSynchronization2Features sync2_features = {
             .sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
-            .pNext = &timeline_features,
+            .pNext = &indexing_features,
             .synchronization2 = VK_TRUE,
         };
 
@@ -261,7 +254,6 @@ static void pick_physical_device(void) {
 
         if (dyn_features.dynamicRendering && shader_obj_features.shaderObject &&
             sync2_features.synchronization2 &&
-            timeline_features.timelineSemaphore &&
             indexing_features.descriptorBindingPartiallyBound &&
             indexing_features.descriptorBindingVariableDescriptorCount &&
             indexing_features.runtimeDescriptorArray &&
@@ -314,15 +306,9 @@ static void create_logical_device(void) {
         .pNext = NULL,
     };
 
-    VkPhysicalDeviceTimelineSemaphoreFeatures timeline_features = {
-        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES,
-        .timelineSemaphore = VK_TRUE,
-        .pNext = &indexing_features,
-    };
-
     VkPhysicalDeviceSynchronization2Features sync2_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES,
-        .pNext = &timeline_features,
+        .pNext = &indexing_features,
         .synchronization2 = VK_TRUE,
     };
 

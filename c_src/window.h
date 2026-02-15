@@ -30,7 +30,9 @@ typedef struct {
     int has_last_time;
 
     VkCommandBuffer blit_cmd;
-    VkFence blit_fence;
+    VkSemaphore* finished_blit_sem;
+    VkSemaphore image_available_sem;
+    VkFence blit_finished_fence;
 } window_res_t;
 
 int nif_init_window_res(ErlNifEnv* env);

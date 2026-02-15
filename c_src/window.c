@@ -245,16 +245,37 @@ static void get_swapchain_images_and_create_views(window_res_t* w) {
     free(images);
 }
 
-static void destroy_window(window_res_t* w) {
+static void window_res_dtor(ErlNifEnv* env, void* obj) {
+    (void)env;
+
+    if (g_device.logical_device) vkDeviceWaitIdle(g_device.logical_device);
+
+    window_res_t* w = (window_res_t*)obj;
+
     if (!w) return;
 
     VkDevice dev = g_device.logical_device;
 
     vkDeviceWaitIdle(dev);
 
-    if (w->blit_fence) {
-        vkDestroyFence(dev, w->blit_fence, NULL);
-        w->blit_fence = VK_NULL_HANDLE;
+    if (w->blit_finished_fence) {
+        vkDestroyFence(dev, w->blit_finished_fence, NULL);
+        w->blit_finished_fence = VK_NULL_HANDLE;
+    }
+
+    if (w->image_available_sem) {
+        vkDestroySemaphore(dev, w->image_available_sem, NULL);
+        w->image_available_sem = VK_NULL_HANDLE;
+    }
+
+    if (w->finished_blit_sem) {
+        for (uint32_t i = 0; i < w->swapchain_image_count; i++) {
+            if (w->finished_blit_sem[i])
+                vkDestroySemaphore(dev, w->finished_blit_sem[i], NULL);
+        }
+
+        free(w->finished_blit_sem);
+        w->finished_blit_sem = NULL;
     }
 
     if (g_blit_cmd_pool != VK_NULL_HANDLE && w->blit_cmd) {
@@ -282,27 +303,20 @@ static void destroy_window(window_res_t* w) {
     }
 }
 
-static void window_res_dtor(ErlNifEnv* env, void* obj) {
-    (void)env;
-
-    if (g_device.logical_device) vkDeviceWaitIdle(g_device.logical_device);
-
-    destroy_window((window_res_t*)obj);
-}
-
-static uint32_t get_curr_swapchain_idx_fence(const window_res_t* w, VkFence f) {
+static uint32_t get_curr_swapchain_idx_fence(const window_res_t* w) {
     if (!w) return UINT32_MAX;
     if (!w->swapchain) return UINT32_MAX;
     if (w->swapchain_image_count == 0 || !w->swapchain_images)
         return UINT32_MAX;
-    if (f == VK_NULL_HANDLE) return UINT32_MAX;
 
     VkDevice dev = g_device.logical_device;
     if (!dev) return UINT32_MAX;
 
     uint32_t img_idx = 0;
-    VkResult acq = vkAcquireNextImageKHR(dev, w->swapchain, UINT64_MAX,
-                                         VK_NULL_HANDLE, f, &img_idx);
+
+    VkResult acq =
+        vkAcquireNextImageKHR(dev, w->swapchain, UINT64_MAX,
+                              w->image_available_sem, VK_NULL_HANDLE, &img_idx);
 
     if (acq == VK_ERROR_OUT_OF_DATE_KHR) return UINT32_MAX;
     if (acq != VK_SUCCESS && acq != VK_SUBOPTIMAL_KHR) return UINT32_MAX;
@@ -347,6 +361,7 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
 
     window_res_t* res = (window_res_t*)enif_alloc_resource(
         WINDOW_RES_TYPE, sizeof(window_res_t));
+
     if (!res) {
         free(title);
         return enif_make_badarg(env);
@@ -407,7 +422,28 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
 
-    if (vkCreateFence(dev, &fence_ci, NULL, &res->blit_fence) != VK_SUCCESS) {
+    if (vkCreateFence(dev, &fence_ci, NULL, &res->blit_finished_fence) !=
+        VK_SUCCESS) {
+        enif_release_resource(res);
+        return enif_make_badarg(env);
+    }
+
+    VkSemaphoreCreateInfo sem_ci = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    };
+
+    res->finished_blit_sem =
+        malloc(sizeof(VkSemaphore) * res->swapchain_image_count);
+
+    assert(res->finished_blit_sem);
+
+    for (uint32_t i = 0; i < res->swapchain_image_count; i++) {
+        THROW_VK_ERROR(env, vkCreateSemaphore(dev, &sem_ci, NULL,
+                                              &res->finished_blit_sem[i]));
+    }
+
+    if (vkCreateSemaphore(dev, &sem_ci, NULL, &res->image_available_sem) !=
+        VK_SUCCESS) {
         enif_release_resource(res);
         return enif_make_badarg(env);
     }
@@ -468,23 +504,25 @@ ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
 
     if (!cmd_res) return enif_make_badarg(env);
 
-    VkSemaphore present_wait_sem = cmd_res->finished_sem[cmd_res->frame];
+    VkSemaphore cmd_finished_sem =
+        cmd_res->finished_sem[cmd_res->last_submitted_frame];
 
     VkDevice dev = g_device.logical_device;
 
     VkCommandBuffer blit_cmd = window->blit_cmd;
-    VkFence fence = window->blit_fence;
 
-    vkWaitForFences(dev, 1, &fence, VK_TRUE, UINT64_MAX);
-    vkResetFences(dev, 1, &fence);
+    VkFence fence = window->blit_finished_fence;
 
-    uint32_t img_idx = get_curr_swapchain_idx_fence(window, fence);
-    if (img_idx == UINT32_MAX) return enif_make_atom(env, "out_of_date");
+    THROW_VK_ERROR(env, vkWaitForFences(dev, 1, &fence, VK_TRUE, UINT64_MAX));
+    THROW_VK_ERROR(env, vkResetFences(dev, 1, &fence));
 
-    vkWaitForFences(dev, 1, &fence, VK_TRUE, UINT64_MAX);
-    vkResetFences(dev, 1, &fence);
+    uint32_t img_idx = get_curr_swapchain_idx_fence(window);
 
-    vkResetCommandBuffer(blit_cmd, 0);
+    if (img_idx == UINT32_MAX) {
+        return enif_make_atom(env, "out_of_date");
+    }
+
+    THROW_VK_ERROR(env, vkResetCommandBuffer(blit_cmd, 0));
 
     VkCommandBufferBeginInfo begin = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -508,42 +546,60 @@ ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
 
     THROW_VK_ERROR(env, vkEndCommandBuffer(blit_cmd));
 
+    VkSemaphoreSubmitInfo wait_for_blit[] = {
+        {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+            .stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+            .semaphore = cmd_finished_sem,
+            .value = 0,
+        },
+
+        {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+            .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .semaphore = window->image_available_sem,
+            .value = 0,
+        },
+    };
+
+    VkSemaphore present_sem = window->finished_blit_sem[img_idx];
+
+    VkSemaphoreSubmitInfo signal_finished_blit = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = present_sem,
+        .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+        .value = 0,
+    };
+
     VkCommandBufferSubmitInfo cmd_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
         .commandBuffer = blit_cmd,
         .deviceMask = 0,
     };
 
-    VkSemaphoreSubmitInfo signal_sem = {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .semaphore = present_wait_sem,
-        .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-        .value = 0,
-    };
-
-    VkSubmitInfo2 submit = {
+    VkSubmitInfo2 blit_submit = {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .waitSemaphoreInfoCount = 0,
-        .pWaitSemaphoreInfos = NULL,
+        .waitSemaphoreInfoCount = 2,
+        .pWaitSemaphoreInfos = wait_for_blit,
         .commandBufferInfoCount = 1,
         .pCommandBufferInfos = &cmd_info,
         .signalSemaphoreInfoCount = 1,
-        .pSignalSemaphoreInfos = &signal_sem,
+        .pSignalSemaphoreInfos = &signal_finished_blit,
     };
 
-    THROW_VK_ERROR(env,
-                   vkQueueSubmit2(g_device.graphics_queue, 1, &submit, fence));
+    THROW_VK_ERROR(
+        env, vkQueueSubmit2(g_device.graphics_queue, 1, &blit_submit, fence));
 
-    VkPresentInfoKHR present = {
+    VkPresentInfoKHR present_submit = {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &present_wait_sem,
+        .pWaitSemaphores = &present_sem,
         .swapchainCount = 1,
         .pSwapchains = &window->swapchain,
         .pImageIndices = &img_idx,
     };
 
-    VkResult pr = vkQueuePresentKHR(g_device.present_queue, &present);
+    VkResult pr = vkQueuePresentKHR(g_device.present_queue, &present_submit);
 
     if (pr == VK_ERROR_OUT_OF_DATE_KHR)
         return enif_make_atom(env, "out_of_date");

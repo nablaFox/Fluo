@@ -134,6 +134,7 @@ ERL_NIF_TERM nif_create_command(ErlNifEnv* env, int argc,
         enif_alloc_resource(COMMAND_RES_TYPE, sizeof(command_res_t));
 
     res->frame = 0;
+    res->last_submitted_frame = 0;
 
     if (vkAllocateCommandBuffers(dev, &alloc_info, res->cmds) != VK_SUCCESS) {
         enif_release_resource(res);
@@ -254,6 +255,7 @@ ERL_NIF_TERM nif_submit_command(ErlNifEnv* env, int argc,
     THROW_VK_ERROR(env, vkQueueSubmit2(g_device.graphics_queue, 1, &submit,
                                        cmd_res->fences[frame]));
 
+    cmd_res->last_submitted_frame = frame;
     cmd_res->frame = (frame + 1) % FRAMES_IN_FLIGHT;
 
     return enif_make_atom(env, "ok");
