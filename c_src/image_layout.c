@@ -116,12 +116,32 @@ static TransitionInfo2 get_transition_info2(VkImageLayout old,
     }
 
     // TRANSFER_SRC -> SHADER_READ_ONLY
-    if (old == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
-        new == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+    else if (old == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
+             new == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
         t.srcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
         t.srcAccess = VK_ACCESS_2_TRANSFER_READ_BIT;
         t.dstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
         t.dstAccess = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+        return t;
+    }
+
+    // TRANSFER_DST -> TRANSFER_SRC
+    if (old == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+        new == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+        t.srcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        t.srcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        t.dstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        t.dstAccess = VK_ACCESS_2_TRANSFER_READ_BIT;
+        return t;
+    }
+
+    // TRANSFER_SRC -> TRANSFER_DST
+    if (old == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
+        new == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        t.srcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        t.srcAccess = VK_ACCESS_2_TRANSFER_READ_BIT;
+        t.dstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        t.dstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT;
         return t;
     }
 
@@ -171,4 +191,10 @@ void transition_image_layout(image_res_t* img, VkImageLayout new_layout,
     vkCmdPipelineBarrier2(cmd, &dep);
 
     img->current_layout = new_layout;
+}
+
+void transition_image_to_optimal_layout(image_res_t* img, VkCommandBuffer cmd) {
+    if (!img || img->image == VK_NULL_HANDLE) return;
+
+    transition_image_layout(img, img->optimal_layout, cmd);
 }

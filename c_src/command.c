@@ -388,7 +388,6 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
     if (!mesh) return enif_make_badarg(env);
 
     const ERL_NIF_TERM params = argv[3];
-    // TODO: use params
 
     VkViewport viewport = {0};
 
@@ -421,8 +420,11 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
     PushConstants push_constants = {
         .material_index = renderer->material_index,
         .frame_params_index = get_frame_params_index(renderer, cmd_res->frame),
-        // TODO: add per draw params
+        .draw_params = {0},
     };
+
+    pack_std140_params_term(env, params, (uint8_t*)push_constants.draw_params,
+                            sizeof(push_constants.draw_params));
 
     vkCmdPushConstants(cmd, g_device.pipeline_layout, VK_SHADER_STAGE_ALL, 0,
                        sizeof(PushConstants), &push_constants);

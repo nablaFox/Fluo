@@ -126,12 +126,6 @@ void destroy_gpu_image(image_res_t* img) {
     *img = (image_res_t){0};
 }
 
-void transition_iamge_to_optimal_layout(image_res_t* img, VkCommandBuffer cmd) {
-    if (!img || img->image == VK_NULL_HANDLE) return;
-
-    transition_image_layout(img, img->optimal_layout, cmd);
-}
-
 void blit_image(image_res_t src, image_res_t dst, VkCommandBuffer cmd) {
     if (src.image == VK_NULL_HANDLE || dst.image == VK_NULL_HANDLE) return;
 

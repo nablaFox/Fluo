@@ -3,15 +3,9 @@
 
 -define(SHADERS_DIR, "shaders").
 
--define(VERTEX_INPUT,
-  <<"layout(location = 0) in vec3 in_position;\n"
-    "layout(location = 1) in vec3 in_normal;\n"
-    "layout(location = 2) in vec2 in_uv;\n">>
-).
-
--define(FRAGMENT_OUTPUT,
-  <<"layout(location = 0) out vec4 out_color;\n">>
-).
+-define(APPEND_VERTEX, "VERTEX_SHADER_INPUTS;").
+-define(APPEND_FRAGMENT, "FRAGMENT_SHADER_OUTPUTS;").
+-define(DEFAULT_DRAW_PARAMS, "DEFAULT_DRAW_PARAMS;").
 
 compile_shaders(PrivDir) ->
   case os:find_executable("glslc") of
@@ -55,6 +49,13 @@ compile_one(Glslc, PrefixBin, PrivDir, ShaderPath) ->
           {error, {cannot_read_shader, ShaderPath, E}};
         {ok, ShaderBin} ->
           SourceIolist = combined_source(Stage, PrefixBin, ShaderBin),
+
+          %% DEBUG: dump the combined shader source
+          case write_debug_combined(PrivDir, Stage, SourceIolist) of
+            ok -> ok;
+            {error, _} = Err -> Err
+          end,
+
           OutPath = ShaderPath ++ ".spv",
           with_temp_glsl(PrivDir, SourceIolist, fun(TmpPath) ->
             run_glslc(Glslc, Stage, TmpPath, OutPath)
@@ -62,13 +63,36 @@ compile_one(Glslc, PrefixBin, PrivDir, ShaderPath) ->
       end
   end.
 
-combined_source(vert, PrefixBin, ShaderBin) ->
-  [PrefixBin, <<"\n">>, ?VERTEX_INPUT, <<"\n">>, ShaderBin];
-combined_source(frag, PrefixBin, ShaderBin) ->
-  [PrefixBin, <<"\n">>, ?FRAGMENT_OUTPUT, <<"\n">>, ShaderBin].
+write_debug_combined(PrivDir, Stage, SourceIolist) ->
+  Name =
+    case Stage of
+      vert -> "temp.vert";
+      frag -> "temp.frag"
+    end,
+  Path = filename:join(PrivDir, Name),
+  case file:write_file(Path, SourceIolist) of
+    ok -> ok;
+    {error, E} -> {error, {cannot_write_debug_shader, Stage, Path, E}}
+  end.
+
+combined_source(Stage, PrefixBin, ShaderBin) ->
+  AppendStage =
+    case Stage of
+      vert -> <<?APPEND_VERTEX, "\n">>;
+      frag -> <<?APPEND_FRAGMENT, "\n">>
+    end,
+  DrawParams = maybe_default_draw_params(ShaderBin),
+  [PrefixBin, <<"\n\n">>, AppendStage, DrawParams, <<"\n">>, ShaderBin].
+
+maybe_default_draw_params(ShaderBin) ->
+  case binary:match(ShaderBin, <<"DEF_DRAW_PARAMS">>) of
+    nomatch -> <<?DEFAULT_DRAW_PARAMS, "\n">>;
+    _ -> <<>>
+  end.
 
 with_temp_glsl(PrivDir, Iolist, Fun) ->
-  TmpName = io_lib:format(".fluo_tmp_~p.glsl", [erlang:unique_integer([monotonic, positive])]),
+  TmpName = io_lib:format(".fluo_tmp_~p.glsl",
+                          [erlang:unique_integer([monotonic, positive])]),
   TmpPath = filename:join(PrivDir, lists:flatten(TmpName)),
   case file:write_file(TmpPath, Iolist) of
     ok ->

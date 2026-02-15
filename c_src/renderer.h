@@ -6,6 +6,8 @@
 typedef struct {
     uint32_t material_index;
     uint32_t frame_params_index;
+    uint32_t padding[2];
+    uint8_t draw_params[110];
 } PushConstants;
 
 typedef struct {

@@ -45,7 +45,7 @@ void destroy_gpu_image(image_res_t* img);
 
 void transition_image_layout(image_res_t* img, VkImageLayout newLayout, VkCommandBuffer cmd);
 
-void transition_iamge_to_optimal_layout(image_res_t* img, VkCommandBuffer cmd);
+void transition_image_to_optimal_layout(image_res_t* img, VkCommandBuffer cmd);
 
 void blit_image(image_res_t src, image_res_t dst, VkCommandBuffer cmd);
 

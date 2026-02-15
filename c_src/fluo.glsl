@@ -6,10 +6,19 @@
 #define FRAME_PARAMS_BINDING 1
 #define TEXTURE_BINDING 2
 
-layout(push_constant) uniform constants {
-    uint material_index;
-    uint params_index;
-} pc;
+#define DEFAULT_DRAW_PARAMS \
+layout(push_constant) uniform constants { \
+    uint material_index; \
+    uint params_index; \
+} pc
+
+#define DEF_DRAW_PARAMS(Struct) \
+struct DrawParams Struct; \
+layout(push_constant) uniform constants { \
+    uint material_index; \
+    uint params_index; \
+    DrawParams draw_params; \
+} pc
 
 #define DEF_MATERIAL(Struct) \
  layout(set = 0, binding = MATERIAL_BINDING) \
@@ -19,16 +28,20 @@ layout(push_constant) uniform constants {
  layout(set = 0, binding = FRAME_PARAMS_BINDING) \
  uniform Params Struct uParams[]
 
+layout(set = 0, binding = TEXTURE_BINDING) uniform sampler2D uTextures[];
+
 #define MATERIAL (uMaterial[pc.material_index])
 
 #define F_PARAMS (uParams[pc.params_index])
 
-layout(set = 0, binding = TEXTURE_BINDING) uniform sampler2D uTextures[];
+#define D_PARAMS (pc.draw_params)
 
 #define TEXTURE(idx, uv) texture(uTextures[nonuniformEXT(idx)], uv)
 
-#ifdef VERTEX_SHADER
-layout(location = 0) in vec3 in_position;
-layout(location = 1) in vec3 in_normal;
-layout(location = 2) in vec2 in_uv;
-#endif
+#define VERTEX_SHADER_INPUTS \
+layout(location = 0) in vec3 in_position; \
+layout(location = 1) in vec3 in_normal; \
+layout(location = 2) in vec2 in_uv
+
+#define FRAGMENT_SHADER_OUTPUTS \
+layout(location = 0) out vec4 out_color
