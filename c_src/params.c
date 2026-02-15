@@ -206,6 +206,20 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
         return 1;
     }
 
+    if (n == 4) {
+        *off = align_up(*off, 16);
+
+        float v4[4];
+        if (!get_f32_term(env, elems[base + 0], &v4[0])) return 0;
+        if (!get_f32_term(env, elems[base + 1], &v4[1])) return 0;
+        if (!get_f32_term(env, elems[base + 2], &v4[2])) return 0;
+        if (!get_f32_term(env, elems[base + 3], &v4[3])) return 0;
+
+        if (!write_bytes(blob, blob_size, *off, v4, sizeof(v4))) return 0;
+        *off += sizeof(v4);
+        return 1;
+    }
+
     if (n == 9) {
         *off = align_up(*off, 16);
 
@@ -262,6 +276,14 @@ int pack_std140_params_term(ErlNifEnv* env, ERL_NIF_TERM params_term,
     if (enif_is_identical(params_term, enif_make_atom(env, "nil"))) {
         memset(blob, 0, blob_size);
         return 1;
+    }
+
+    if (get_texture_from_term(env, params_term) != NULL) {
+        size_t off = 0;
+        memset(blob, 0, blob_size);
+        if (!pack_std140_term(env, params_term, blob, blob_size, &off))
+            return 0;
+        return off <= blob_size;
     }
 
     size_t off = 0;
