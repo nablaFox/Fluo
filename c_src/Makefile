@@ -22,6 +22,7 @@ C_SRCS := \
   keys.c \
   mouse.c \
   image_layout.c \
+  image_save.c \
   command.c \
   texture.c \
   params.c \

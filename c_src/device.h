@@ -29,6 +29,8 @@ struct Device {
 
     VkCommandPool upload_cmd_pool;
 
+    VkSampleCountFlagBits max_sample_count;
+
 #ifdef DEBUG
     VkDebugUtilsMessengerEXT debug_messenger;
 #endif

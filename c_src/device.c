@@ -469,6 +469,23 @@ static void create_upload_cmd_pool(void) {
                         &g_device.upload_cmd_pool);
 }
 
+static VkSampleCountFlagBits get_max_usable_sample_count(void) {
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(g_device.physical_device, &properties);
+
+    VkSampleCountFlags counts = properties.limits.framebufferColorSampleCounts &
+                                properties.limits.framebufferDepthSampleCounts;
+
+    if (counts & VK_SAMPLE_COUNT_64_BIT) return VK_SAMPLE_COUNT_64_BIT;
+    if (counts & VK_SAMPLE_COUNT_32_BIT) return VK_SAMPLE_COUNT_32_BIT;
+    if (counts & VK_SAMPLE_COUNT_16_BIT) return VK_SAMPLE_COUNT_16_BIT;
+    if (counts & VK_SAMPLE_COUNT_8_BIT) return VK_SAMPLE_COUNT_8_BIT;
+    if (counts & VK_SAMPLE_COUNT_4_BIT) return VK_SAMPLE_COUNT_4_BIT;
+    if (counts & VK_SAMPLE_COUNT_2_BIT) return VK_SAMPLE_COUNT_2_BIT;
+
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
 void init_device() {
     create_instance();
 #ifdef DEBUG
@@ -479,6 +496,8 @@ void init_device() {
     create_allocator();
     create_bindless_descriptors();
     create_upload_cmd_pool();
+
+    g_device.max_sample_count = get_max_usable_sample_count();
 }
 
 void destroy_device() {

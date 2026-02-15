@@ -5,7 +5,7 @@
 
 #include "vk_mem_alloc.h"
 
-#define FLUO_COLOR_FORMAT VK_FORMAT_R8G8B8A8_UNORM
+#define FLUO_COLOR_FORMAT VK_FORMAT_B8G8R8A8_UNORM
 
 #define FLUO_DEPTH_FORMAT VK_FORMAT_D32_SFLOAT
 
@@ -19,6 +19,7 @@ typedef struct {
     VkImage image;
     VkImageView view;
     VkImageAspectFlags aspect;
+    VkSampleCountFlagBits samples;
     VkFormat format;
     VkImageLayout optimal_layout;
     VkImageLayout current_layout;
@@ -59,7 +60,8 @@ int create_image(image_res_t* out,
                  VkFormat format,
                  VkImageUsageFlags usage,
                  VkImageAspectFlags aspect,
-                 VkMemoryPropertyFlags memory_properties);
+                 VkMemoryPropertyFlags memory_properties,
+                 VkSampleCountFlagBits samples);
 
 image_res_t* get_image_from_term(ErlNifEnv* env, ERL_NIF_TERM term);
 

@@ -400,7 +400,10 @@ ERL_NIF_TERM nif_set_frame_params(ErlNifEnv* env, int argc,
 
     const ERL_NIF_TERM params = argv[2];
 
-    if (!buf || !buf->buffer || buf->size == 0) return enif_make_badarg(env);
+    if (!buf || !buf->buffer || buf->size == 0) {
+        enif_mutex_unlock(g_vk_mutex);
+        return enif_make_atom(env, "ok");
+    }
 
     const size_t ubo_size = (size_t)buf->size;
 

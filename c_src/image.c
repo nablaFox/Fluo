@@ -2,9 +2,6 @@
 
 #include "device.h"
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
 static ErlNifResourceType* IMAGE_RES_TYPE = NULL;
 
 VkCommandPool g_blit_cmd_pool = VK_NULL_HANDLE;
@@ -16,7 +13,8 @@ static ERL_NIF_TERM ATOM_IMAGE_HANDLE;
 int create_image(image_res_t* out, uint32_t width, uint32_t height,
                  VkImageLayout optimal_layout, VkFormat format,
                  VkImageUsageFlags usage, VkImageAspectFlags aspect,
-                 VkMemoryPropertyFlags memory_properties) {
+                 VkMemoryPropertyFlags memory_properties,
+                 VkSampleCountFlagBits samples) {
     if (!out || width == 0 || height == 0) return 0;
 
     *out = (image_res_t){0};
@@ -30,7 +28,7 @@ int create_image(image_res_t* out, uint32_t width, uint32_t height,
         .extent = (VkExtent3D){.width = width, .height = height, .depth = 1},
         .mipLevels = 1,
         .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .samples = samples,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = usage,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -92,6 +90,7 @@ int create_image(image_res_t* out, uint32_t width, uint32_t height,
     out->current_layout = VK_IMAGE_LAYOUT_UNDEFINED;
     out->optimal_layout = optimal_layout;
     out->extent = (VkExtent2D){.width = width, .height = height};
+    out->samples = samples;
 
     return 1;
 }
@@ -100,14 +99,16 @@ int create_color_image(image_res_t* out, VkImageLayout optimal_layout,
                        uint32_t width, uint32_t height, VkImageUsageFlags usage,
                        VkMemoryPropertyFlags memory_properties) {
     return create_image(out, width, height, optimal_layout, FLUO_COLOR_FORMAT,
-                        usage, VK_IMAGE_ASPECT_COLOR_BIT, memory_properties);
+                        usage, VK_IMAGE_ASPECT_COLOR_BIT, memory_properties,
+                        g_device.max_sample_count);
 }
 
 int create_depth_image(image_res_t* out, VkImageLayout optimal_layout,
                        uint32_t width, uint32_t height, VkImageUsageFlags usage,
                        VkMemoryPropertyFlags memory_properties) {
     return create_image(out, width, height, optimal_layout, FLUO_DEPTH_FORMAT,
-                        usage, VK_IMAGE_ASPECT_DEPTH_BIT, memory_properties);
+                        usage, VK_IMAGE_ASPECT_DEPTH_BIT, memory_properties,
+                        g_device.max_sample_count);
 }
 
 void destroy_gpu_image(image_res_t* img) {
@@ -415,133 +416,6 @@ ERL_NIF_TERM nif_read_image(ErlNifEnv* env, int argc,
     vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
 
     return bin_term;
-}
-
-static int get_path_from_term(ErlNifEnv* env, ERL_NIF_TERM term, char* out,
-                              size_t out_sz) {
-    ErlNifBinary bin;
-    if (!enif_inspect_iolist_as_binary(env, term, &bin)) {
-        return 0;  // not iolist/string/binary
-    }
-    if (bin.size + 1 > out_sz) {
-        return 0;  // too long
-    }
-    memcpy(out, bin.data, bin.size);
-    out[bin.size] = '\0';
-    return 1;
-}
-
-ERL_NIF_TERM nif_save_color_image_to_png(ErlNifEnv* env, int argc,
-                                         const ERL_NIF_TERM argv[]) {
-    if (argc != 2) return enif_make_badarg(env);
-
-    image_res_t* img = get_image_from_term(env, argv[0]);
-
-    if (img->format != VK_FORMAT_R8G8B8A8_UNORM) {
-        return enif_make_badarg(env);
-    }
-
-    if ((img->aspect & VK_IMAGE_ASPECT_COLOR_BIT) == 0) {
-        return enif_make_badarg(env);
-    }
-
-    const uint32_t w = img->extent.width;
-    const uint32_t h = img->extent.height;
-    if (w == 0 || h == 0) return enif_make_badarg(env);
-
-    char path[4096];
-    if (!get_path_from_term(env, argv[1], path, sizeof(path))) {
-        fprintf(
-            stderr,
-            "Failed to get path from arg (expected iolist/binary/string)\n");
-        return enif_make_badarg(env);
-    }
-
-    const VkDeviceSize bpp = 4;
-    const VkDeviceSize size = (VkDeviceSize)w * (VkDeviceSize)h * bpp;
-
-    VkBuffer staging_buf = VK_NULL_HANDLE;
-    VmaAllocation staging_alloc = VK_NULL_HANDLE;
-
-    VkBufferCreateInfo buf_info = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-        .pNext = NULL,
-        .flags = 0,
-        .size = size,
-        .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .queueFamilyIndexCount = 0,
-        .pQueueFamilyIndices = NULL,
-    };
-
-    VmaAllocationCreateInfo alloc_info = {
-        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
-        .usage = VMA_MEMORY_USAGE_AUTO,
-        .requiredFlags = 0,
-        .preferredFlags = 0,
-        .memoryTypeBits = 0,
-        .pool = VK_NULL_HANDLE,
-        .pUserData = NULL,
-        .priority = 0.0f,
-    };
-
-    if (vmaCreateBuffer(g_device.allocator, &buf_info, &alloc_info,
-                        &staging_buf, &staging_alloc, NULL) != VK_SUCCESS) {
-        return enif_make_atom(env, "error");
-    }
-
-    VkCommandBuffer cmd = begin_single_time_commands();
-
-    VkImageLayout old_layout = img->current_layout;
-
-    transition_image_layout(img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, cmd);
-
-    VkBufferImageCopy region = {
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-        .imageSubresource =
-            (VkImageSubresourceLayers){
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-        .imageOffset = (VkOffset3D){0, 0, 0},
-        .imageExtent = (VkExtent3D){w, h, 1},
-    };
-
-    vkCmdCopyImageToBuffer(cmd, img->image,
-                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, staging_buf, 1,
-                           &region);
-
-    transition_image_layout(img, old_layout, cmd);
-
-    if (!end_single_time_commands(cmd)) {
-        vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
-        return enif_make_atom(env, "error");
-    }
-
-    void* mapped = NULL;
-    if (vmaMapMemory(g_device.allocator, staging_alloc, &mapped) !=
-            VK_SUCCESS ||
-        !mapped) {
-        vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
-        return enif_make_atom(env, "error");
-    }
-
-    vmaInvalidateAllocation(g_device.allocator, staging_alloc, 0, size);
-
-    const int stride = (int)(w * 4);
-
-    int ok = stbi_write_png(path, (int)w, (int)h, 4, mapped, stride);
-
-    vmaUnmapMemory(g_device.allocator, staging_alloc);
-    vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
-
-    if (!ok) return enif_make_atom(env, "error");
-
-    return enif_make_atom(env, "ok");
 }
 
 void destroy_blit_command_pool(void) {

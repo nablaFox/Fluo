@@ -473,9 +473,9 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
     vkCmdSetScissorWithCount(cmd, 1, &scissor);
     vkCmdSetRasterizerDiscardEnable(cmd, VK_FALSE);
     vkCmdSetPolygonModeEXT_(cmd, VK_POLYGON_MODE_FILL);
-    vkCmdSetRasterizationSamplesEXT_(cmd, VK_SAMPLE_COUNT_1_BIT);
+    vkCmdSetRasterizationSamplesEXT_(cmd, g_device.max_sample_count);
     VkSampleMask sample_mask = 0xFFFFFFFF;
-    vkCmdSetSampleMaskEXT_(cmd, VK_SAMPLE_COUNT_1_BIT, &sample_mask);
+    vkCmdSetSampleMaskEXT_(cmd, g_device.max_sample_count, &sample_mask);
     vkCmdSetAlphaToCoverageEnableEXT_(cmd, VK_FALSE);
     vkCmdSetAlphaToOneEnableEXT_(cmd, VK_FALSE);
     vkCmdSetCullMode(cmd, VK_CULL_MODE_NONE);

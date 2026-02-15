@@ -9,13 +9,13 @@ typedef struct {
     VkAccessFlags2 dstAccess;
 } TransitionInfo2;
 
-static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
-                                            VkImageLayout newL) {
+static TransitionInfo2 get_transition_info2(VkImageLayout old,
+                                            VkImageLayout new) {
     TransitionInfo2 t = {0};
 
-    // PRESENT -> TRANSFER_DST (swapchain before blit)
-    if (oldL == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR &&
-        newL == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    // PRESENT -> TRANSFER_DST
+    if (old == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR &&
+        new == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
         t.srcStage = VK_PIPELINE_STAGE_2_NONE;
         t.srcAccess = 0;
         t.dstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
@@ -23,9 +23,9 @@ static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
         return t;
     }
 
-    // TRANSFER_DST -> PRESENT (swapchain after blit)
-    if (oldL == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
-        newL == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
+    // TRANSFER_DST -> PRESENT
+    if (old == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+        new == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
         t.srcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
         t.srcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT;
         t.dstStage = VK_PIPELINE_STAGE_2_NONE;
@@ -33,9 +33,9 @@ static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
         return t;
     }
 
-    // COLOR_ATTACHMENT -> TRANSFER_SRC (offscreen before blit)
-    if (oldL == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
-        newL == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+    // COLOR_ATTACHMENT -> TRANSFER_SRC
+    if (old == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
+        new == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
         t.srcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
         t.srcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
         t.dstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
@@ -43,10 +43,9 @@ static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
         return t;
     }
 
-    // TRANSFER_SRC -> COLOR_ATTACHMENT (offscreen after blit, back to
-    // renderable)
-    if (oldL == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
-        newL == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+    // TRANSFER_SRC -> COLOR_ATTACHMENT
+    if (old == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
+        new == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
         t.srcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
         t.srcAccess = VK_ACCESS_2_TRANSFER_READ_BIT;
         t.dstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -54,9 +53,9 @@ static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
         return t;
     }
 
-    // UNDEFINED -> COLOR_ATTACHMENT (first use)
-    if (oldL == VK_IMAGE_LAYOUT_UNDEFINED &&
-        newL == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+    // UNDEFINED -> COLOR_ATTACHMENT
+    if (old == VK_IMAGE_LAYOUT_UNDEFINED &&
+        new == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
         t.srcStage = VK_PIPELINE_STAGE_2_NONE;
         t.srcAccess = 0;
         t.dstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -64,9 +63,9 @@ static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
         return t;
     }
 
-    // UNDEFINED -> DEPTH_STENCIL_ATTACHMENT (first use)
-    if (oldL == VK_IMAGE_LAYOUT_UNDEFINED &&
-        newL == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+    // UNDEFINED -> DEPTH_STENCIL_ATTACHMENT
+    if (old == VK_IMAGE_LAYOUT_UNDEFINED &&
+        new == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
         t.srcStage = VK_PIPELINE_STAGE_2_NONE;
         t.srcAccess = 0;
         t.dstStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
@@ -75,9 +74,9 @@ static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
         return t;
     }
 
-    // DEPTH_STENCIL_ATTACHMENT -> TRANSFER_SRC (if you ever need it)
-    if (oldL == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
-        newL == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+    // DEPTH_STENCIL_ATTACHMENT -> TRANSFER_SRC
+    if (old == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL &&
+        new == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
         t.srcStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
                      VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
         t.srcAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -86,9 +85,9 @@ static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
         return t;
     }
 
-    // UNDEFINED -> TRANSFER_DST (uploads)
-    if (oldL == VK_IMAGE_LAYOUT_UNDEFINED &&
-        newL == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+    // UNDEFINED -> TRANSFER_DST
+    if (old == VK_IMAGE_LAYOUT_UNDEFINED &&
+        new == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
         t.srcStage = VK_PIPELINE_STAGE_2_NONE;
         t.srcAccess = 0;
         t.dstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
@@ -96,9 +95,9 @@ static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
         return t;
     }
 
-    // TRANSFER_DST -> SHADER_READ_ONLY (uploads finished)
-    if (oldL == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
-        newL == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+    // TRANSFER_DST -> SHADER_READ_ONLY
+    if (old == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+        new == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
         t.srcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
         t.srcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT;
         t.dstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
@@ -106,8 +105,28 @@ static TransitionInfo2 get_transition_info2(VkImageLayout oldL,
         return t;
     }
 
-    fprintf(stderr, "Unsupported layout transition2: %d -> %d\n", (int)oldL,
-            (int)newL);
+    // SHADER_READ_ONLY -> TRANSFER_SRC
+    if (old == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL &&
+        new == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+        t.srcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        t.srcAccess = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+        t.dstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        t.dstAccess = VK_ACCESS_2_TRANSFER_READ_BIT;
+        return t;
+    }
+
+    // TRANSFER_SRC -> SHADER_READ_ONLY
+    if (old == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL &&
+        new == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        t.srcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        t.srcAccess = VK_ACCESS_2_TRANSFER_READ_BIT;
+        t.dstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        t.dstAccess = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+        return t;
+    }
+
+    fprintf(stderr, "Unsupported layout transition2: %d -> %d\n", (int)old,
+            (int)new);
 
     assert(!"Unsupported layout transition2");
 

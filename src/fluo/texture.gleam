@@ -14,23 +14,25 @@ fn create_texture_raw(
   pixels: BitArray,
   width: Int,
   height: Int,
-) -> #(image.ColorImage, Dynamic)
+) -> #(Dynamic, Dynamic)
 
 @external(erlang, "fluo_nif", "load_texture_from_path")
-fn load_texture_raw(path: String) -> #(image.ColorImage, Dynamic)
+fn load_texture_raw(path: String) -> #(Dynamic, Dynamic, Int, Int)
 
 pub fn create_texture(pixels: BitArray, width: Int, height: Int) -> Texture {
   let #(color, handle) = create_texture_raw(pixels, width, height)
 
   let handle = TextureHandle(handle)
+  let color = image.create_from_handle(color, width, height)
 
   Texture(color, handle)
 }
 
 pub fn load_texture(path: String) -> Texture {
-  let #(color, handle) = load_texture_raw(path)
+  let #(color, handle, width, height) = load_texture_raw(path)
 
   let handle = TextureHandle(handle)
+  let color = image.create_from_handle(color, width, height)
 
   Texture(color, handle)
 }

@@ -1,5 +1,7 @@
 #include "image.h"
 
+#define FLUO_TEXTURE_FORMAT VK_FORMAT_R8G8B8A8_UNORM
+
 typedef struct {
     image_res_t* image;
     VkSampler sampler;

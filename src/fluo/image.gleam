@@ -49,3 +49,12 @@ pub fn create_depth_image(width: Int, height: Int) -> DepthImage {
 
   DepthImage(width, height, handle)
 }
+
+pub fn create_from_handle(
+  handle: Dynamic,
+  width: Int,
+  height: Int,
+) -> ColorImage {
+  let handle = ImageHandle(handle)
+  ColorImage(width, height, handle)
+}

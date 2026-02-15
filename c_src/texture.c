@@ -163,9 +163,10 @@ texture_res_t* create_texture_from_pixels(ErlNifEnv* env, const uint8_t* pixels,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
-    if (!create_image(
-            img, width, height, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            VK_FORMAT_R8G8B8A8_UNORM, usage, VK_IMAGE_ASPECT_COLOR_BIT, 0)) {
+    if (!create_image(img, width, height,
+                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                      FLUO_TEXTURE_FORMAT, usage, VK_IMAGE_ASPECT_COLOR_BIT, 0,
+                      VK_SAMPLE_COUNT_1_BIT)) {
         vkDestroySampler(g_device.logical_device, tex->sampler, NULL);
         enif_release_resource(img);
         enif_release_resource(tex);
@@ -337,5 +338,6 @@ ERL_NIF_TERM nif_load_texture_from_path(ErlNifEnv* env, int argc,
     enif_release_resource(img);
     enif_release_resource(tex);
 
-    return enif_make_tuple2(env, img_term, tex_term);
+    return enif_make_tuple4(env, img_term, tex_term, enif_make_int(env, width),
+                            enif_make_int(env, height));
 }

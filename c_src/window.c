@@ -59,7 +59,7 @@ static VkSurfaceFormatKHR choose_surface_format(VkSurfaceKHR surface) {
     VkSurfaceFormatKHR chosen = formats[0];
     for (uint32_t i = 0; i < count; i++) {
         if (formats[i].format == FLUO_SURFACE_FORMAT &&
-            formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            formats[i].colorSpace == FLUO_SURFACE_COLOR_SPACE) {
             chosen = formats[i];
             break;
         }
@@ -268,14 +268,14 @@ static void window_res_dtor(ErlNifEnv* env, void* obj) {
         w->image_available_sem = VK_NULL_HANDLE;
     }
 
-    if (w->finished_blit_sem) {
+    if (w->present_sem) {
         for (uint32_t i = 0; i < w->swapchain_image_count; i++) {
-            if (w->finished_blit_sem[i])
-                vkDestroySemaphore(dev, w->finished_blit_sem[i], NULL);
+            if (w->present_sem[i])
+                vkDestroySemaphore(dev, w->present_sem[i], NULL);
         }
 
-        free(w->finished_blit_sem);
-        w->finished_blit_sem = NULL;
+        free(w->present_sem);
+        w->present_sem = NULL;
     }
 
     if (g_blit_cmd_pool != VK_NULL_HANDLE && w->blit_cmd) {
@@ -432,14 +432,13 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     };
 
-    res->finished_blit_sem =
-        malloc(sizeof(VkSemaphore) * res->swapchain_image_count);
+    res->present_sem = malloc(sizeof(VkSemaphore) * res->swapchain_image_count);
 
-    assert(res->finished_blit_sem);
+    assert(res->present_sem);
 
     for (uint32_t i = 0; i < res->swapchain_image_count; i++) {
-        THROW_VK_ERROR(env, vkCreateSemaphore(dev, &sem_ci, NULL,
-                                              &res->finished_blit_sem[i]));
+        THROW_VK_ERROR(
+            env, vkCreateSemaphore(dev, &sem_ci, NULL, &res->present_sem[i]));
     }
 
     if (vkCreateSemaphore(dev, &sem_ci, NULL, &res->image_available_sem) !=
@@ -541,7 +540,43 @@ ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
     transition_image_layout(swapchain_image,
                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, blit_cmd);
 
-    blit_image(*color_image, *swapchain_image, blit_cmd);
+    VkImageResolve2 region = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_RESOLVE_2,
+        .srcSubresource =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = 0,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        .srcOffset = {0, 0, 0},
+        .dstSubresource =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = 0,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        .dstOffset = {0, 0, 0},
+        .extent =
+            {
+                .width = swapchain_image->extent.width,
+                .height = swapchain_image->extent.height,
+                .depth = 1,
+            },
+    };
+
+    VkResolveImageInfo2 resolve_info = {
+        .sType = VK_STRUCTURE_TYPE_RESOLVE_IMAGE_INFO_2,
+        .srcImage = color_image->image,
+        .srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .dstImage = swapchain_image->image,
+        .dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .regionCount = 1,
+        .pRegions = &region,
+    };
+
+    vkCmdResolveImage2(blit_cmd, &resolve_info);
 
     transition_iamge_to_optimal_layout(swapchain_image, blit_cmd);
     transition_iamge_to_optimal_layout(color_image, blit_cmd);
@@ -551,7 +586,7 @@ ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
     VkSemaphoreSubmitInfo wait_for_blit[] = {
         {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-            .stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+            .stageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
             .semaphore = cmd_finished_sem,
             .value = 0,
         },
@@ -564,7 +599,7 @@ ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc,
         },
     };
 
-    VkSemaphore present_sem = window->finished_blit_sem[img_idx];
+    VkSemaphore present_sem = window->present_sem[img_idx];
 
     VkSemaphoreSubmitInfo signal_finished_blit = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,

@@ -5,9 +5,11 @@
 #include <GLFW/glfw3.h>
 #include "image.h"
 
-#define FLUO_PRESENT_MODE VK_PRESENT_MODE_FIFO_RELAXED_KHR
+#define FLUO_PRESENT_MODE VK_PRESENT_MODE_IMMEDIATE_KHR
 
 #define FLUO_SURFACE_FORMAT VK_FORMAT_R8G8B8A8_UNORM
+
+#define FLUO_SURFACE_COLOR_SPACE VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
 
 typedef struct {
     GLFWwindow* handle;
@@ -30,7 +32,7 @@ typedef struct {
     int has_last_time;
 
     VkCommandBuffer blit_cmd;
-    VkSemaphore* finished_blit_sem;
+    VkSemaphore* present_sem;
     VkSemaphore image_available_sem;
     VkFence blit_finished_fence;
 } window_res_t;
