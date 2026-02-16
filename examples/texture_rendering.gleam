@@ -1,6 +1,6 @@
 import fluo/command
+import fluo/geometry
 import fluo/key
-import fluo/mesh.{Vec2, Vec3, Vertex}
 import fluo/renderer.{type Renderer}
 import fluo/texture.{type Texture}
 import fluo/window.{draw}
@@ -11,18 +11,9 @@ import gleam/list
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let triangle = mesh.load_obj("assets/triangle.obj")
+  let triangle = geometry.create_triangle()
 
-  let quad =
-    mesh.create_mesh(
-      [
-        Vertex(Vec3(-1.0, -1.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec2(0.0, 0.0)),
-        Vertex(Vec3(-1.0, 1.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec2(0.0, 1.0)),
-        Vertex(Vec3(1.0, 1.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec2(1.0, 1.0)),
-        Vertex(Vec3(1.0, -1.0, 0.0), Vec3(0.0, 0.0, 1.0), Vec2(1.0, 0.0)),
-      ],
-      [0, 1, 2, 2, 3, 0],
-    )
+  let quad = geometry.create_quad()
 
   let texture = {
     let width = 512

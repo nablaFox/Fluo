@@ -1,4 +1,4 @@
-import fluo/mesh
+import fluo/geometry
 import fluo/renderer.{type Renderer}
 import fluo/texture.{type Texture}
 import fluo/window.{draw}
@@ -9,7 +9,7 @@ import gleam/list
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let triangle = mesh.load_obj("assets/triangle.obj")
+  let triangle = geometry.create_triangle()
 
   let texture = {
     let width = 512

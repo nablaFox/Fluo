@@ -1,10 +1,10 @@
 import fluo/command
+import fluo/geometry
 import fluo/image
-import fluo/mesh
 import fluo/renderer.{type Renderer}
 
 pub fn main() {
-  let triangle = mesh.load_obj("assets/suzanne.obj")
+  let triangle = geometry.create_triangle()
 
   let renderer: Renderer(Nil, Float, Nil) =
     renderer.create_renderer(

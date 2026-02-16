@@ -8,15 +8,15 @@ Currently under development.
 #### Gleam cpu code
 
 ```gleam
+import fluo/geometry
 import fluo/key
-import fluo/mesh
 import fluo/renderer.{type Renderer}
 import fluo/window.{draw}
 
 pub fn main() {
   let window = window.create_window("Fluo Window", width: 800, height: 600)
 
-  let triangle = mesh.load_obj("assets/triangle.obj")
+  let triangle = geometry.create_triangle()
 
   let renderer: Renderer(Nil, Float, Nil) =
     renderer.create_renderer(
@@ -32,7 +32,7 @@ pub fn main() {
     _ -> alpha
   }
 
-  draw(triangle, ctx, renderer, alpha)
+  draw(triangle, ctx, renderer, alpha, Nil)
 
   alpha
 }

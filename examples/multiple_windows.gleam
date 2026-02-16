@@ -1,5 +1,5 @@
 import fluo/command
-import fluo/mesh
+import fluo/geometry
 import fluo/renderer.{type Renderer}
 import fluo/window
 
@@ -7,7 +7,7 @@ pub fn main() {
   let window1 = window.create_window("Fluo Window 1", width: 800, height: 600)
   let window2 = window.create_window("Fluo Window 2", width: 600, height: 800)
 
-  let triangle = mesh.load_obj("assets/suzanne.obj")
+  let triangle = geometry.create_triangle()
 
   let renderer: Renderer(Nil, Float, Nil) =
     renderer.create_renderer(
