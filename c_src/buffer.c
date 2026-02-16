@@ -37,10 +37,8 @@ int create_gpu_buffer(GpuBuffer* out, VkDeviceSize size,
         alloc_info.flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
     }
 
-    VkResult vr = vmaCreateBuffer(g_device.allocator, &buff_info, &alloc_info,
-                                  &out->buffer, &out->alloc, &out->info);
-
-    if (vr != VK_SUCCESS) {
+    if (vmaCreateBuffer(g_device.allocator, &buff_info, &alloc_info,
+                        &out->buffer, &out->alloc, &out->info) != VK_SUCCESS) {
         gpu_buffer_zero(out);
         return 0;
     }
@@ -48,7 +46,6 @@ int create_gpu_buffer(GpuBuffer* out, VkDeviceSize size,
     out->size = size;
     out->usage = usage;
     out->memory_properties = memoryProperties;
-
     out->mapped = out->info.pMappedData;
 
     return 1;
@@ -96,4 +93,20 @@ int read_gpu_buffer(GpuBuffer* buf, void* dst, VkDeviceSize size,
     vmaUnmapMemory(g_device.allocator, buf->alloc);
 
     return 1;
+}
+
+int copy_gpu_buffer(GpuBuffer* dst_buf, VkDeviceSize dst_offset,
+                    GpuBuffer* src_buf, VkDeviceSize src_offset,
+                    VkDeviceSize size) {
+    VkCommandBuffer cmd = begin_single_time_commands();
+
+    VkBufferCopy copy_region = {
+        .srcOffset = src_offset,
+        .dstOffset = dst_offset,
+        .size = size,
+    };
+
+    vkCmdCopyBuffer(cmd, src_buf->buffer, dst_buf->buffer, 1, &copy_region);
+
+    return end_single_time_commands(cmd);
 }

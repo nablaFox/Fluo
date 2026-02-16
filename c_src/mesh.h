@@ -24,7 +24,7 @@ typedef struct {
     VkDeviceSize index_heap;
     VkDeviceSize vertex_buffer_size;
     VkDeviceSize index_buffer_size;
-} MeshAllocator;
+} mesh_allocator_res_t;
 
 typedef struct {
     VkDeviceSize vertex_offset;
@@ -33,9 +33,11 @@ typedef struct {
     VkDeviceSize index_offset;
     VkDeviceSize index_size;
 
+    VkDeviceSize index_staging_offset;
+
     uint32_t indices_count;
 
-    MeshAllocator* allocator;
+    mesh_allocator_res_t* allocator;
 } mesh_res_t;
 
 int nif_init_mesh_res(ErlNifEnv* env);
@@ -50,7 +52,7 @@ ERL_NIF_TERM nif_submit_mesh_writes(ErlNifEnv* env, int argc, const ERL_NIF_TERM
 
 mesh_res_t* get_mesh_from_term(ErlNifEnv* env, ERL_NIF_TERM term);
 
-MeshAllocator* create_mesh_allocator(uint32_t vertex_buffer_size, uint32_t index_buffer_size);
+mesh_allocator_res_t* get_allocator_from_term(ErlNifEnv* env, ERL_NIF_TERM term);
 
 #ifdef __cplusplus
 }

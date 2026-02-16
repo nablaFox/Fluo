@@ -42,7 +42,7 @@ fn allocate_mesh(
 ) -> Dynamic
 
 @external(erlang, "fluo_nif", "write_mesh")
-fn write_mesh(mesh: Dynamic, vertices: BitArray, indices: BitArray) -> Nil
+fn write_mesh(mesh: MeshHandle, vertices: BitArray, indices: BitArray) -> Nil
 
 @external(erlang, "fluo_nif", "submit_mesh_writes")
 fn write_meshes(allocator: Dynamic) -> Nil
@@ -74,11 +74,33 @@ fn create_mesh(
 }
 
 pub fn vertices_to_bitarray(vertices: List(Vertex)) -> BitArray {
-  todo
+  {
+    use vertex <- list.flat_map(vertices)
+    let Vertex(
+      position: Vec3(px, py, pz),
+      normal: Vec3(nx, ny, nz),
+      uv: Vec2(u, v),
+    ) = vertex
+    [
+      <<px:float-32-native>>,
+      <<py:float-32-native>>,
+      <<pz:float-32-native>>,
+      <<nx:float-32-native>>,
+      <<ny:float-32-native>>,
+      <<nz:float-32-native>>,
+      <<u:float-32-native>>,
+      <<v:float-32-native>>,
+    ]
+  }
+  |> bit_array.concat
 }
 
 pub fn indices_to_bitarray(indices: List(Int)) -> BitArray {
-  todo
+  {
+    use index <- list.map(indices)
+    <<index:int-32-native>>
+  }
+  |> bit_array.concat
 }
 
 pub fn create(vertices: List(Vertex), indices: List(Int)) -> Mesh {
@@ -96,9 +118,7 @@ pub fn create_from_bits(vertices: BitArray, indices: BitArray) -> Mesh {
 
   let mesh = create_mesh(allocator, vertices, indices)
 
-  let MeshHandle(handle) = mesh.handle
-
-  write_mesh(handle, vertices, indices)
+  write_mesh(mesh.handle, vertices, indices)
 
   write_meshes(allocator)
 
