@@ -4,8 +4,6 @@
 
 static ErlNifResourceType* IMAGE_RES_TYPE = NULL;
 
-VkCommandPool g_blit_cmd_pool = VK_NULL_HANDLE;
-
 static ERL_NIF_TERM ATOM_NONE;
 static ERL_NIF_TERM ATOM_SOME;
 static ERL_NIF_TERM ATOM_IMAGE_HANDLE;
@@ -184,20 +182,6 @@ int nif_init_image_res(ErlNifEnv* env) {
     ATOM_NONE = enif_make_atom(env, "none");
     ATOM_SOME = enif_make_atom(env, "some");
     ATOM_IMAGE_HANDLE = enif_make_atom(env, "image_handle");
-
-    if (g_blit_cmd_pool == VK_NULL_HANDLE) {
-        VkCommandPoolCreateInfo pool_ci = {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-            .queueFamilyIndex = g_device.graphics_family,
-        };
-
-        if (vkCreateCommandPool(g_device.logical_device, &pool_ci, NULL,
-                                &g_blit_cmd_pool) != VK_SUCCESS) {
-            g_blit_cmd_pool = VK_NULL_HANDLE;
-            return -1;
-        }
-    }
 
     return 0;
 }
@@ -410,14 +394,4 @@ ERL_NIF_TERM nif_read_image(ErlNifEnv* env, int argc,
     vmaDestroyBuffer(g_device.allocator, staging_buf, staging_alloc);
 
     return bin_term;
-}
-
-void destroy_blit_command_pool(void) {
-    VkDevice dev = g_device.logical_device;
-    if (!dev) return;
-
-    if (g_blit_cmd_pool != VK_NULL_HANDLE) {
-        vkDestroyCommandPool(dev, g_blit_cmd_pool, NULL);
-        g_blit_cmd_pool = VK_NULL_HANDLE;
-    }
 }

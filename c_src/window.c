@@ -11,6 +11,8 @@
 
 static ErlNifResourceType* WINDOW_RES_TYPE = NULL;
 
+VkCommandPool g_blit_cmd_pool = VK_NULL_HANDLE;
+
 static void cursor_pos_cb(GLFWwindow* win, double x, double y) {
     window_res_t* w = (window_res_t*)glfwGetWindowUserPointer(win);
     if (!w) return;
@@ -283,6 +285,11 @@ static void window_res_dtor(ErlNifEnv* env, void* obj) {
         w->blit_cmd = VK_NULL_HANDLE;
     }
 
+    if (g_blit_cmd_pool != VK_NULL_HANDLE) {
+        vkDestroyCommandPool(dev, g_blit_cmd_pool, NULL);
+        g_blit_cmd_pool = VK_NULL_HANDLE;
+    }
+
     destroy_swapchain_image_views(w);
 
     if (w->swapchain) {
@@ -329,6 +336,20 @@ int nif_init_window_res(ErlNifEnv* env) {
     WINDOW_RES_TYPE =
         enif_open_resource_type(env, "fluo_nif", "window_res", window_res_dtor,
                                 ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER, NULL);
+
+    if (g_blit_cmd_pool == VK_NULL_HANDLE) {
+        VkCommandPoolCreateInfo pool_ci = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = g_device.graphics_family,
+        };
+
+        if (vkCreateCommandPool(g_device.logical_device, &pool_ci, NULL,
+                                &g_blit_cmd_pool) != VK_SUCCESS) {
+            g_blit_cmd_pool = VK_NULL_HANDLE;
+            return -1;
+        }
+    }
 
     if (!WINDOW_RES_TYPE) return -1;
 

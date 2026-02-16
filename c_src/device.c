@@ -536,13 +536,16 @@ VkCommandBuffer begin_single_time_commands(void) {
     };
 
     VkCommandBuffer cmd;
+
     vkAllocateCommandBuffers(g_device.logical_device, &alloc, &cmd);
 
     VkCommandBufferBeginInfo begin = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     };
+
     vkBeginCommandBuffer(cmd, &begin);
+
     return cmd;
 }
 
