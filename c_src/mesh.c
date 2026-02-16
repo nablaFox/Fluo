@@ -151,6 +151,7 @@ ERL_NIF_TERM nif_allocate_mesh(ErlNifEnv* env, int argc,
         allocator->vertex_buffer_size + allocator->index_heap;
     mesh_res->index_size = index_size;
     mesh_res->allocator = allocator;
+    mesh_res->indices_count = indices_count;
 
     allocator->vertex_heap += vertex_size;
     allocator->index_heap += index_size;

@@ -37,7 +37,6 @@ C_SRCS := \
   fluo_nif.c
 
 CPP_SRCS := \
-  mesh_obj.cpp \
   vendor/vma_impl.cpp
 
 all: $(SO) $(GLSL_DST)

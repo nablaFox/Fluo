@@ -1,5 +1,4 @@
 -module(fluo_nif).
-
 -export([
   create_window/3,
   window_should_close/1,
@@ -9,8 +8,10 @@
   window_delta_time/1,
   window_capture_mouse/1,
   window_release_mouse/1,
-  create_mesh/2,
-  load_mesh_from_obj/1,
+  create_mesh_allocator/2,
+  allocate_mesh/3,
+  write_mesh/3,
+  submit_mesh_writes/1,
   create_renderer/3,
   create_depth_image/2,
   create_color_image/2,
@@ -28,7 +29,6 @@
   end_rendering/1,
   draw_mesh/6
 ]).
-
 -nifs([
   create_window/3,
   window_should_close/1,
@@ -38,8 +38,10 @@
   window_delta_time/1,
   window_capture_mouse/1,
   window_release_mouse/1,
-  create_mesh/2,
-  load_mesh_from_obj/1,
+  create_mesh_allocator/2,
+  allocate_mesh/3,
+  write_mesh/3,
+  submit_mesh_writes/1,
   create_renderer/3,
   create_depth_image/2,
   create_color_image/2,
@@ -57,7 +59,6 @@
   end_rendering/1,
   draw_mesh/6
 ]).
-
 -on_load(init/0).
 
 init() ->
@@ -93,8 +94,10 @@ window_mouse_delta(_) -> erlang:nif_error(not_loaded).
 window_delta_time(_) -> erlang:nif_error(not_loaded).
 window_capture_mouse(_) -> erlang:nif_error(not_loaded).
 window_release_mouse(_) -> erlang:nif_error(not_loaded).
-create_mesh(_, _) -> erlang:nif_error(not_loaded).
-load_mesh_from_obj(_) -> erlang:nif_error(not_loaded).
+create_mesh_allocator(_, _) -> erlang:nif_error(not_loaded).
+allocate_mesh(_, _, _) -> erlang:nif_error(not_loaded).
+write_mesh(_, _, _) -> erlang:nif_error(not_loaded).
+submit_mesh_writes(_) -> erlang:nif_error(not_loaded).
 create_renderer(_, _, _) -> erlang:nif_error(not_loaded).
 create_depth_image(_, _) -> erlang:nif_error(not_loaded).
 create_color_image(_, _) -> erlang:nif_error(not_loaded).

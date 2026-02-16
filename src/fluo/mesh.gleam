@@ -47,9 +47,6 @@ fn write_mesh(mesh: Dynamic, vertices: BitArray, indices: BitArray) -> Nil
 @external(erlang, "fluo_nif", "submit_mesh_writes")
 fn write_meshes(allocator: Dynamic) -> Nil
 
-@external(erlang, "fluo_nif", "load_mesh_from_obj")
-fn load_obj(path: String) -> #(Int, Int, Dynamic, Dynamic)
-
 fn vertices_count(vertices: BitArray) -> Int {
   bit_array.byte_size(vertices) / { 3 * 4 + 3 * 4 + 2 * 4 }
 }
@@ -129,13 +126,4 @@ pub fn create_many(
   write_meshes(allocator)
 
   meshes
-}
-
-pub fn create_from_obj(path: String) -> Mesh {
-  let #(vertices_count, indices_count, handle, allocator) = load_obj(path)
-
-  let handle = MeshHandle(handle)
-  let allocator = MeshAllocator(allocator)
-
-  Mesh(vertices_count, indices_count, allocator, handle)
 }

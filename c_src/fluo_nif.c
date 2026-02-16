@@ -55,8 +55,6 @@ static void unload(ErlNifEnv* env, void* priv) {
 
     destroy_command_pool();
 
-    destroy_blit_command_pool();
-
     destroy_device();
 }
 
@@ -69,8 +67,10 @@ static ErlNifFunc nif_funcs[] = {
     {"window_delta_time", 1, nif_window_delta_time},
     {"window_capture_mouse", 1, nif_window_capture_mouse},
     {"window_release_mouse", 1, nif_window_release_mouse},
-    {"create_mesh", 2, nif_create_mesh},
-    {"load_mesh_from_obj", 1, nif_load_mesh_from_obj},
+    {"create_mesh_allocator", 2, nif_create_mesh_allocator},
+    {"allocate_mesh", 3, nif_allocate_mesh},
+    {"write_mesh", 3, nif_write_mesh},
+    {"submit_mesh_writes", 1, nif_submit_mesh_writes},
     {"create_renderer", 3, nif_create_renderer},
     {"create_depth_image", 2, nif_create_depth_image},
     {"create_color_image", 2, nif_create_color_image},
@@ -78,11 +78,8 @@ static ErlNifFunc nif_funcs[] = {
     {"create_texture", 3, nif_create_texture},
     {"load_texture_from_path", 1, nif_load_texture_from_path},
     {"save_color_image", 2, nif_save_color_image_to_png},
-
     {"swap_buffers", 3, nif_swap_buffers},
-
     {"set_frame_params", 3, nif_set_frame_params},
-
     {"create_command", 0, nif_create_command},
     {"start_command_recording", 1, nif_start_command_recording},
     {"end_command_recording", 1, nif_end_command_recording},

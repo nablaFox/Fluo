@@ -127,7 +127,6 @@ ERL_NIF_TERM nif_save_color_image_to_png(ErlNifEnv* env, int argc,
     VkImageLayout resolve_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
     VkImage copy_src_image = img->image;
-    VkImageLayout copy_src_layout = img->current_layout;
 
     VkCommandBuffer cmd = begin_single_time_commands();
 
@@ -180,13 +179,12 @@ ERL_NIF_TERM nif_save_color_image_to_png(ErlNifEnv* env, int argc,
                           1, &region);
 
         copy_src_image = resolve_image;
-        copy_src_layout = resolve_layout;
 
         transition_image_layout_raw(cmd, resolve_image,
                                     VK_IMAGE_ASPECT_COLOR_BIT, resolve_layout,
                                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
         resolve_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-        copy_src_layout = resolve_layout;
 
         transition_image_layout(img, old_layout, cmd);
     }
@@ -198,7 +196,6 @@ ERL_NIF_TERM nif_save_color_image_to_png(ErlNifEnv* env, int argc,
         old_layout_for_copy = img->current_layout;
         needs_restore = 1;
         transition_image_layout(img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, cmd);
-        copy_src_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
     }
 
     VkBufferImageCopy region = {

@@ -320,8 +320,8 @@ ERL_NIF_TERM nif_create_renderer(ErlNifEnv* env, int argc,
             goto fail;
         }
 
-        if (!direct_write_gpu_buffer(&res->material_ubo, ubo_blob,
-                                     (VkDeviceSize)material_ubo_size, 0)) {
+        if (!write_gpu_buffer(&res->material_ubo, ubo_blob,
+                              (VkDeviceSize)material_ubo_size, 0)) {
             goto fail;
         }
 
@@ -419,7 +419,7 @@ ERL_NIF_TERM nif_set_frame_params(ErlNifEnv* env, int argc,
         return enif_make_badarg(env);
     }
 
-    if (!direct_write_gpu_buffer(buf, ubo_blob, (VkDeviceSize)ubo_size, 0)) {
+    if (!write_gpu_buffer(buf, ubo_blob, (VkDeviceSize)ubo_size, 0)) {
         enif_fprintf(stderr, "renderer: failed to update params (size=%llu)\n",
                      (unsigned long long)ubo_size);
         return enif_make_badarg(env);

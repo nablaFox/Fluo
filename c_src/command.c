@@ -429,8 +429,10 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
     vkCmdPushConstants(cmd, g_device.pipeline_layout, VK_SHADER_STAGE_ALL, 0,
                        sizeof(PushConstants), &push_constants);
 
-    VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->vertex_buffer.buffer, &offset);
+    VkDeviceSize offset = mesh->vertex_offset;
+
+    vkCmdBindVertexBuffers(cmd, 0, 1, &mesh->allocator->vertex_buffer.buffer,
+                           &offset);
 
     VkVertexInputBindingDescription2EXT binding = {
         .sType = VK_STRUCTURE_TYPE_VERTEX_INPUT_BINDING_DESCRIPTION_2_EXT,
@@ -466,10 +468,10 @@ ERL_NIF_TERM nif_draw_mesh(ErlNifEnv* env, int argc,
 
     vkCmdSetVertexInputEXT_(cmd, 1, &binding, 3, attributes);
 
-    VkDeviceSize offset_indices = 0;
+    VkDeviceSize offset_indices = mesh->index_offset;
 
-    vkCmdBindIndexBuffer(cmd, mesh->index_buffer.buffer, offset_indices,
-                         VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(cmd, mesh->allocator->index_buffer.buffer,
+                         offset_indices, VK_INDEX_TYPE_UINT32);
 
     vkCmdSetViewportWithCount(cmd, 1, &viewport);
     vkCmdSetScissorWithCount(cmd, 1, &scissor);
