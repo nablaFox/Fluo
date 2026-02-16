@@ -28,7 +28,7 @@ pub fn create_texture(pixels: BitArray, width: Int, height: Int) -> Texture {
   Texture(color, handle)
 }
 
-pub fn load_texture(path: String) -> Texture {
+pub fn load(path: String) -> Texture {
   let #(color, handle, width, height) = load_texture_raw(path)
 
   let handle = TextureHandle(handle)

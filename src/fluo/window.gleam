@@ -153,15 +153,16 @@ pub fn drawer(
 pub fn draw(
   mesh: Mesh,
   ctx: Context,
-  renderer: Renderer(material, frame_params, Nil),
+  renderer: Renderer(material, frame_params, draw_params),
   frame_params: frame_params,
+  draw_params: draw_params,
 ) -> Nil {
   let viewport = #(0, 0, ctx.width, ctx.height)
   let scissor = #(0, 0, ctx.width, ctx.height)
 
   mesh
   |> command.create_drawer(ctx.cmd, renderer, frame_params)(
-    Nil,
+    draw_params,
     scissor,
     viewport,
   )

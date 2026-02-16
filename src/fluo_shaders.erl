@@ -49,30 +49,11 @@ compile_one(Glslc, PrefixBin, PrivDir, ShaderPath) ->
           {error, {cannot_read_shader, ShaderPath, E}};
         {ok, ShaderBin} ->
           SourceIolist = combined_source(Stage, PrefixBin, ShaderBin),
-
-          %% DEBUG: dump the combined shader source
-          case write_debug_combined(PrivDir, Stage, SourceIolist) of
-            ok -> ok;
-            {error, _} = Err -> Err
-          end,
-
           OutPath = ShaderPath ++ ".spv",
           with_temp_glsl(PrivDir, SourceIolist, fun(TmpPath) ->
             run_glslc(Glslc, Stage, TmpPath, OutPath)
           end)
       end
-  end.
-
-write_debug_combined(PrivDir, Stage, SourceIolist) ->
-  Name =
-    case Stage of
-      vert -> "temp.vert";
-      frag -> "temp.frag"
-    end,
-  Path = filename:join(PrivDir, Name),
-  case file:write_file(Path, SourceIolist) of
-    ok -> ok;
-    {error, E} -> {error, {cannot_write_debug_shader, Stage, Path, E}}
   end.
 
 combined_source(Stage, PrefixBin, ShaderBin) ->

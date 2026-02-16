@@ -120,7 +120,7 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
             *off = align_up(*off, 16);
             if (!write_bytes(blob, blob_size, *off, v3, 12)) return 0;
             if (!write_zeros(blob, blob_size, *off + 12, 4)) return 0;
-            *off += 16;
+            *off += 12;
             return 1;
         }
 
@@ -202,7 +202,7 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
 
         if (!write_bytes(blob, blob_size, *off, v3, 12)) return 0;
         if (!write_zeros(blob, blob_size, *off + 12, 4)) return 0;
-        *off += 16;
+        *off += 12;
         return 1;
     }
 
