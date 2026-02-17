@@ -143,9 +143,8 @@ static int pack_mat4_f32_std140(uint8_t* blob, size_t blob_size, size_t* off,
     return 1;
 }
 
-static int try_pack_tuple_as_math(ErlNifEnv* env, const ERL_NIF_TERM* elems,
-                                  int base, int n, uint8_t* blob,
-                                  size_t blob_size, size_t* off) {
+static int pack_tuple(ErlNifEnv* env, const ERL_NIF_TERM* elems, int base,
+                      int n, uint8_t* blob, size_t blob_size, size_t* off) {
     if (n == 2) {
         float v[2];
         if (get_f32_term(env, elems[base + 0], &v[0]) &&
@@ -254,8 +253,7 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
 
     if (tagged) {
         int n = arity - 1;
-        int math_result =
-            try_pack_tuple_as_math(env, elems, 1, n, blob, blob_size, off);
+        int math_result = pack_tuple(env, elems, 1, n, blob, blob_size, off);
         if (math_result == 1) return 1;
         if (math_result == -1) return 0;
 
@@ -265,6 +263,17 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
         }
         return 1;
     }
+
+    int math_result = pack_tuple(env, elems, 0, arity, blob, blob_size, off);
+
+    if (math_result == 1) return 1;
+    if (math_result == -1) return 0;
+
+    for (int i = 0; i < arity; i++) {
+        if (!pack_std140_term(env, elems[i], blob, blob_size, off)) return 0;
+    }
+
+    return 1;
 
     return 1;
 }
