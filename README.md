@@ -58,4 +58,4 @@ void main() {
 }
 ```
 
-Checkout more examples in the [examples](./examples) folder.
+Checkout more examples in the [examples repo](https://github.com/nablaFox/fluo-examples).
