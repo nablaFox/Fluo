@@ -412,16 +412,10 @@ ERL_NIF_TERM nif_set_frame_params(ErlNifEnv* env, int argc,
     if (!ubo_blob) return enif_make_badarg(env);
 
     if (!pack_std140_params_term(env, params, ubo_blob, ubo_size)) {
-        enif_fprintf(
-            stderr,
-            "renderer: std140 pack failed or size mismatch (size=%llu)\n",
-            (unsigned long long)ubo_size);
         return enif_make_badarg(env);
     }
 
     if (!write_gpu_buffer(buf, ubo_blob, (VkDeviceSize)ubo_size, 0)) {
-        enif_fprintf(stderr, "renderer: failed to update params (size=%llu)\n",
-                     (unsigned long long)ubo_size);
         return enif_make_badarg(env);
     }
 

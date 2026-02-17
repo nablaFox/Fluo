@@ -70,100 +70,177 @@ static int read_f32_list(ErlNifEnv* env, ERL_NIF_TERM list, float* out,
     return 1;
 }
 
+static int is_tagged_tuple(ErlNifEnv* env, int arity,
+                           const ERL_NIF_TERM* elems) {
+    return (arity >= 2 && enif_is_atom(env, elems[0]));
+}
+
+static int pack_u32(uint8_t* blob, size_t blob_size, size_t* off, uint32_t v) {
+    *off = align_up(*off, 4);
+    if (!write_bytes(blob, blob_size, *off, &v, 4)) return 0;
+    *off += 4;
+    return 1;
+}
+
+static int pack_f32(uint8_t* blob, size_t blob_size, size_t* off, float v) {
+    *off = align_up(*off, 4);
+    if (!write_bytes(blob, blob_size, *off, &v, 4)) return 0;
+    *off += 4;
+    return 1;
+}
+
+static int pack_vec2_f32(uint8_t* blob, size_t blob_size, size_t* off,
+                         const float v[2]) {
+    *off = align_up(*off, 8);
+    if (!write_bytes(blob, blob_size, *off, v, 8)) return 0;
+    *off += 8;
+    return 1;
+}
+
+static int pack_vec3_f32_std140(uint8_t* blob, size_t blob_size, size_t* off,
+                                const float v[3]) {
+    *off = align_up(*off, 16);
+    if (!write_bytes(blob, blob_size, *off, v, 12)) return 0;
+    if (!write_zeros(blob, blob_size, *off + 12, 4)) return 0;
+    *off += 12;
+    return 1;
+}
+
+static int pack_vec4_f32(uint8_t* blob, size_t blob_size, size_t* off,
+                         const float v[4]) {
+    *off = align_up(*off, 16);
+    if (!write_bytes(blob, blob_size, *off, v, 16)) return 0;
+    *off += 16;
+    return 1;
+}
+
+static int pack_mat3_f32_std140(uint8_t* blob, size_t blob_size, size_t* off,
+                                const float m9[9]) {
+    *off = align_up(*off, 16);
+    for (int col = 0; col < 3; col++) {
+        float colv[3] = {
+            m9[0 * 3 + col],
+            m9[1 * 3 + col],
+            m9[2 * 3 + col],
+        };
+        if (!pack_vec3_f32_std140(blob, blob_size, off, colv)) return 0;
+    }
+    return 1;
+}
+
+static int pack_mat4_f32_std140(uint8_t* blob, size_t blob_size, size_t* off,
+                                const float m16[16]) {
+    *off = align_up(*off, 16);
+    for (int col = 0; col < 4; col++) {
+        float colv[4] = {
+            m16[0 * 4 + col],
+            m16[1 * 4 + col],
+            m16[2 * 4 + col],
+            m16[3 * 4 + col],
+        };
+        if (!pack_vec4_f32(blob, blob_size, off, colv)) return 0;
+    }
+    return 1;
+}
+
+static int try_pack_tuple_as_math(ErlNifEnv* env, const ERL_NIF_TERM* elems,
+                                  int base, int n, uint8_t* blob,
+                                  size_t blob_size, size_t* off) {
+    if (n == 2) {
+        float v[2];
+        if (get_f32_term(env, elems[base + 0], &v[0]) &&
+            get_f32_term(env, elems[base + 1], &v[1])) {
+            return pack_vec2_f32(blob, blob_size, off, v) ? 1 : -1;
+        }
+        return 0;
+    }
+
+    if (n == 3) {
+        float v[3];
+        if (get_f32_term(env, elems[base + 0], &v[0]) &&
+            get_f32_term(env, elems[base + 1], &v[1]) &&
+            get_f32_term(env, elems[base + 2], &v[2])) {
+            return pack_vec3_f32_std140(blob, blob_size, off, v) ? 1 : -1;
+        }
+        return 0;
+    }
+
+    if (n == 4) {
+        float v[4];
+        if (get_f32_term(env, elems[base + 0], &v[0]) &&
+            get_f32_term(env, elems[base + 1], &v[1]) &&
+            get_f32_term(env, elems[base + 2], &v[2]) &&
+            get_f32_term(env, elems[base + 3], &v[3])) {
+            return pack_vec4_f32(blob, blob_size, off, v) ? 1 : -1;
+        }
+        return 0;
+    }
+
+    if (n == 9) {
+        float m[9];
+        for (int i = 0; i < 9; i++) {
+            if (!get_f32_term(env, elems[base + i], &m[i])) return 0;
+        }
+        return pack_mat3_f32_std140(blob, blob_size, off, m) ? 1 : -1;
+    }
+
+    if (n == 16) {
+        float m[16];
+        for (int i = 0; i < 16; i++) {
+            if (!get_f32_term(env, elems[base + i], &m[i])) return 0;
+        }
+        return pack_mat4_f32_std140(blob, blob_size, off, m) ? 1 : -1;
+    }
+
+    return 0;
+}
+
 static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
                             size_t blob_size, size_t* off) {
     uint32_t b01 = 0;
     if (get_bool_term(env, t, &b01)) {
-        *off = align_up(*off, 4);
-        if (!write_bytes(blob, blob_size, *off, &b01, 4)) return 0;
-        *off += 4;
-        return 1;
+        return pack_u32(blob, blob_size, off, b01);
     }
 
     float f = 0.0f;
     if (get_f32_term(env, t, &f)) {
-        *off = align_up(*off, 4);
-        if (!write_bytes(blob, blob_size, *off, &f, 4)) return 0;
-        *off += 4;
-        return 1;
+        return pack_f32(blob, blob_size, off, f);
     }
 
     uint32_t u = 0;
     if (get_u32_term(env, t, &u)) {
-        *off = align_up(*off, 4);
-        if (!write_bytes(blob, blob_size, *off, &u, 4)) return 0;
-        *off += 4;
-        return 1;
+        return pack_u32(blob, blob_size, off, u);
     }
 
     texture_res_t* tex = get_texture_from_term(env, t);
-
     if (tex) {
-        uint32_t idx = tex->texture_index;
-        *off = align_up(*off, 4);
-        if (!write_bytes(blob, blob_size, *off, &idx, 4)) return 0;
-        *off += 4;
-        return 1;
+        return pack_u32(blob, blob_size, off, tex->texture_index);
     }
 
     if (enif_is_list(env, t)) {
         float v2[2];
         if (read_f32_list(env, t, v2, 2)) {
-            *off = align_up(*off, 8);
-            if (!write_bytes(blob, blob_size, *off, v2, sizeof(v2))) return 0;
-            *off += sizeof(v2);
-            return 1;
+            return pack_vec2_f32(blob, blob_size, off, v2);
         }
 
         float v3[3];
         if (read_f32_list(env, t, v3, 3)) {
-            *off = align_up(*off, 16);
-            if (!write_bytes(blob, blob_size, *off, v3, 12)) return 0;
-            if (!write_zeros(blob, blob_size, *off + 12, 4)) return 0;
-            *off += 12;
-            return 1;
+            return pack_vec3_f32_std140(blob, blob_size, off, v3);
         }
 
         float v4[4];
         if (read_f32_list(env, t, v4, 4)) {
-            *off = align_up(*off, 16);
-            if (!write_bytes(blob, blob_size, *off, v4, sizeof(v4))) return 0;
-            *off += sizeof(v4);
-            return 1;
+            return pack_vec4_f32(blob, blob_size, off, v4);
         }
 
         float m3[9];
         if (read_f32_list(env, t, m3, 9)) {
-            *off = align_up(*off, 16);
-            for (int col = 0; col < 3; col++) {
-                *off = align_up(*off, 16);
-                float colv[3] = {
-                    m3[0 * 3 + col],  // row 0, col
-                    m3[1 * 3 + col],  // row 1, col
-                    m3[2 * 3 + col],  // row 2, col
-                };
-                if (!write_bytes(blob, blob_size, *off, colv, 12)) return 0;
-                if (!write_zeros(blob, blob_size, *off + 12, 4)) return 0;
-                *off += 16;
-            }
-            return 1;
+            return pack_mat3_f32_std140(blob, blob_size, off, m3);
         }
 
         float m4[16];
         if (read_f32_list(env, t, m4, 16)) {
-            *off = align_up(*off, 16);
-            for (int col = 0; col < 4; col++) {
-                *off = align_up(*off, 16);
-                float colv[4] = {
-                    m4[0 * 4 + col],  // row 0, col
-                    m4[1 * 4 + col],  // row 1, col
-                    m4[2 * 4 + col],  // row 2, col
-                    m4[3 * 4 + col],  // row 3, col
-                };
-                if (!write_bytes(blob, blob_size, *off, colv, 16)) return 0;
-                *off += 16;
-            }
-            return 1;
+            return pack_mat4_f32_std140(blob, blob_size, off, m4);
         }
 
         return 0;
@@ -173,138 +250,40 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
     int arity = 0;
     if (!enif_get_tuple(env, t, &arity, &elems)) return 0;
 
-    int tagged = 0;
-    int base = 0;
+    int tagged = is_tagged_tuple(env, arity, elems);
 
-    if (arity >= 2 && enif_is_atom(env, elems[0])) {
-        tagged = 1;
-        base = 1;
-    }
+    if (tagged) {
+        int n = arity - 1;
+        int math_result =
+            try_pack_tuple_as_math(env, elems, 1, n, blob, blob_size, off);
+        if (math_result == 1) return 1;
+        if (math_result == -1) return 0;
 
-    int n = arity - base;
-
-    if (n == 2) {
-        *off = align_up(*off, 8);
-        float v[2];
-        if (!get_f32_term(env, elems[base + 0], &v[0])) return 0;
-        if (!get_f32_term(env, elems[base + 1], &v[1])) return 0;
-        if (!write_bytes(blob, blob_size, *off, v, sizeof(v))) return 0;
-        *off += sizeof(v);
-        return 1;
-    }
-
-    if (n == 3) {
-        *off = align_up(*off, 16);
-        float v3[3];
-        if (!get_f32_term(env, elems[base + 0], &v3[0])) return 0;
-        if (!get_f32_term(env, elems[base + 1], &v3[1])) return 0;
-        if (!get_f32_term(env, elems[base + 2], &v3[2])) return 0;
-
-        if (!write_bytes(blob, blob_size, *off, v3, 12)) return 0;
-        if (!write_zeros(blob, blob_size, *off + 12, 4)) return 0;
-        *off += 12;
-        return 1;
-    }
-
-    if (n == 4) {
-        *off = align_up(*off, 16);
-
-        float v4[4];
-        if (!get_f32_term(env, elems[base + 0], &v4[0])) return 0;
-        if (!get_f32_term(env, elems[base + 1], &v4[1])) return 0;
-        if (!get_f32_term(env, elems[base + 2], &v4[2])) return 0;
-        if (!get_f32_term(env, elems[base + 3], &v4[3])) return 0;
-
-        if (!write_bytes(blob, blob_size, *off, v4, sizeof(v4))) return 0;
-        *off += sizeof(v4);
-        return 1;
-    }
-
-    if (n == 9) {
-        *off = align_up(*off, 16);
-
-        float m[9];
-        for (int i = 0; i < 9; i++) {
-            if (!get_f32_term(env, elems[base + i], &m[i])) return 0;
-        }
-
-        for (int col = 0; col < 3; col++) {
-            *off = align_up(*off, 16);
-            float colv[3] = {
-                m[0 * 3 + col],
-                m[1 * 3 + col],
-                m[2 * 3 + col],
-            };
-            if (!write_bytes(blob, blob_size, *off, colv, 12)) return 0;
-            if (!write_zeros(blob, blob_size, *off + 12, 4)) return 0;
-            *off += 16;
+        for (int i = 1; i < arity; i++) {
+            if (!pack_std140_term(env, elems[i], blob, blob_size, off))
+                return 0;
         }
         return 1;
     }
 
-    if (n == 16) {
-        *off = align_up(*off, 16);
-
-        float m[16];
-        for (int i = 0; i < 16; i++) {
-            if (!get_f32_term(env, elems[base + i], &m[i])) return 0;
-        }
-
-        for (int col = 0; col < 4; col++) {
-            *off = align_up(*off, 16);
-            float colv[4] = {
-                m[0 * 4 + col],
-                m[1 * 4 + col],
-                m[2 * 4 + col],
-                m[3 * 4 + col],
-            };
-            if (!write_bytes(blob, blob_size, *off, colv, 16)) return 0;
-            *off += 16;
-        }
-        return 1;
-    }
-
-    (void)tagged;
-
-    return 0;
+    return 1;
 }
 
 int pack_std140_params_term(ErlNifEnv* env, ERL_NIF_TERM params_term,
                             uint8_t* blob, size_t blob_size) {
-    const ERL_NIF_TERM* elems = NULL;
-
     if (enif_is_identical(params_term, enif_make_atom(env, "nil"))) {
         memset(blob, 0, blob_size);
         return 1;
     }
 
-    if (get_texture_from_term(env, params_term) != NULL) {
-        size_t off = 0;
-        memset(blob, 0, blob_size);
-        if (!pack_std140_term(env, params_term, blob, blob_size, &off))
-            return 0;
-        return off <= blob_size;
-    }
-
     size_t off = 0;
     memset(blob, 0, blob_size);
 
-    int arity = 0;
-
-    if (enif_get_tuple(env, params_term, &arity, &elems)) {
-        for (int i = 0; i < arity; i++) {
-            if (!pack_std140_term(env, elems[i], blob, blob_size, &off)) {
-                enif_fprintf(stderr,
-                             "renderer: std140 pack failed for tuple element "
-                             "%d (size=%llu)\n",
-                             i, (unsigned long long)blob_size);
-                return 0;
-            }
-        }
-        return off <= blob_size;
+    if (!pack_std140_term(env, params_term, blob, blob_size, &off)) {
+        enif_fprintf(stderr, "renderer: std140 pack failed (size=%llu)\n",
+                     (unsigned long long)blob_size);
+        return 0;
     }
-
-    if (!pack_std140_term(env, params_term, blob, blob_size, &off)) return 0;
 
     return off <= blob_size;
 }

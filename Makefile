@@ -1,4 +1,4 @@
-APP_PRIV_DIR := ../priv
+APP_PRIV_DIR := priv
 LIB_NAME := libfluo_nif
 SO := $(APP_PRIV_DIR)/$(LIB_NAME).so
 GLSL_SRC := fluo.glsl
@@ -8,8 +8,7 @@ CXX := g++
 CXXFLAGS := -fPIC -Wall
 LDFLAGS := -shared
 LDLIBS := -lvulkan -lglfw
-
-INCLUDES := -I./erl_nif -I./vendor
+INCLUDES := -I./c_src/erl_nif -I./c_src/vendor
 
 ifdef DEBUG
 CXXFLAGS += -DDEBUG -g -O0
@@ -18,36 +17,36 @@ CXXFLAGS += -O3
 endif
 
 C_SRCS := \
-  vendor/spirv_reflect.c \
-  keys.c \
-  mouse.c \
-  image_layout.c \
-  image_save.c \
-  command.c \
-  texture.c \
-  params.c \
-  image.c \
-  utils.c \
-  shaders.c \
-  renderer.c \
-  mesh.c \
-  buffer.c \
-  device.c \
-  window.c \
-  fluo_nif.c
+	c_src/vendor/spirv_reflect.c \
+	c_src/keys.c \
+	c_src/mouse.c \
+	c_src/image_layout.c \
+	c_src/image_save.c \
+	c_src/command.c \
+	c_src/texture.c \
+	c_src/params.c \
+	c_src/image.c \
+	c_src/utils.c \
+	c_src/shaders.c \
+	c_src/renderer.c \
+	c_src/mesh.c \
+	c_src/buffer.c \
+	c_src/device.c \
+	c_src/window.c \
+	c_src/fluo_nif.c
 
 CPP_SRCS := \
-  vendor/vma_impl.cpp
+	c_src/vendor/vma_impl.cpp
 
 all: $(SO) $(GLSL_DST)
 
 $(SO): $(C_SRCS) $(CPP_SRCS)
 	mkdir -p $(APP_PRIV_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(LDFLAGS) \
-	  $(addprefix -x c ,$(C_SRCS)) \
-	  $(addprefix -x c++ ,$(CPP_SRCS)) \
-	  -o $@ \
-	  $(LDLIBS)
+		$(addprefix -x c ,$(C_SRCS)) \
+		$(addprefix -x c++ ,$(CPP_SRCS)) \
+		-o $@ \
+		$(LDLIBS)
 
 $(GLSL_DST): $(GLSL_SRC)
 	mkdir -p $(APP_PRIV_DIR)

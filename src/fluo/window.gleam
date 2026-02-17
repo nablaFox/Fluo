@@ -4,6 +4,7 @@ import fluo/key.{type Key}
 import fluo/mesh.{type Mesh}
 import fluo/renderer.{type Renderer}
 import gleam/dynamic.{type Dynamic}
+import gleam/list
 
 pub opaque type WindowHandle {
   WindowHandle(Dynamic)
@@ -37,6 +38,8 @@ pub type Context {
     depth: DepthImage,
     title: String,
     cmd: CommandRendering,
+    screenshot: fn(String) -> Nil,
+    axis: fn(Key, Key) -> Float,
     capture_mouse: fn() -> Nil,
     release_mouse: fn() -> Nil,
     priv_: PrivateContext,
@@ -170,7 +173,15 @@ pub fn draw(
 
 pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
   let cmd = command.create_command()
+  do_loop(window, cmd, state, callback)
+}
 
+fn do_loop(
+  window: Window,
+  cmd: Command,
+  state: a,
+  callback: fn(Context, a) -> a,
+) {
   case window_should_close(window) {
     True -> Nil
     False -> {
@@ -191,6 +202,20 @@ pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
         _ -> 1.0 /. delta
       }
 
+      let axis = fn(negative, positive) {
+        let is_down = fn(key: key.Key) { keys_down |> list.contains(key) }
+
+        case is_down(negative), is_down(positive) {
+          True, False -> -1.0
+          False, True -> 1.0
+          _, _ -> 0.0
+        }
+      }
+
+      let screenshot = fn(path: String) {
+        image.save_color_image(window.color, path)
+      }
+
       let state = {
         use cmd <- command.run(cmd)
 
@@ -209,6 +234,8 @@ pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
             window.depth,
             window.title,
             cmd,
+            screenshot,
+            axis,
             capture_mouse,
             release_mouse,
             PrivateContext,
@@ -219,7 +246,7 @@ pub fn loop(window: Window, state: a, callback: fn(Context, a) -> a) {
 
       present(window, cmd)
 
-      loop(window, state, callback)
+      do_loop(window, cmd, state, callback)
     }
   }
 }

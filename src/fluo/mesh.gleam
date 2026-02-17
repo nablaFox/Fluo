@@ -31,6 +31,9 @@ pub type Mesh {
   )
 }
 
+pub type Allocator =
+  fn(BitArray, BitArray) -> Mesh
+
 @external(erlang, "fluo_nif", "create_mesh_allocator")
 fn create_mesh_allocator(vertices_count: Int, indices_count: Int) -> Dynamic
 
@@ -126,24 +129,23 @@ pub fn create_from_bits(vertices: BitArray, indices: BitArray) -> Mesh {
 }
 
 pub fn create_many(
-  vertices: List(BitArray),
-  indices: List(BitArray),
-) -> List(Mesh) {
-  let vertices_count =
-    list.fold(vertices, 0, fn(acc, vertices) { acc + vertices_count(vertices) })
-
-  let indices_count =
-    list.fold(indices, 0, fn(acc, indices) { acc + indices_count(indices) })
-
+  vertices_count: Int,
+  indices_count: Int,
+  callback: fn(Allocator) -> a,
+) -> a {
   let allocator = create_mesh_allocator(vertices_count, indices_count)
 
-  let meshes = {
-    use #(vertices, indices) <- list.map(list.zip(vertices, indices))
+  let allocate = fn(vertices: BitArray, indices: BitArray) -> Mesh {
+    let mesh = create_mesh(allocator, vertices, indices)
 
-    create_mesh(allocator, vertices, indices)
+    write_mesh(mesh.handle, vertices, indices)
+
+    mesh
   }
+
+  let result = callback(allocate)
 
   write_meshes(allocator)
 
-  meshes
+  result
 }
