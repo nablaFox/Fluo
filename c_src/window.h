@@ -55,6 +55,10 @@ ERL_NIF_TERM nif_window_capture_mouse(ErlNifEnv* env, int argc, const ERL_NIF_TE
 
 ERL_NIF_TERM nif_window_release_mouse(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
+ERL_NIF_TERM nif_window_mouse_left_down(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
+ERL_NIF_TERM nif_window_mouse_right_down(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
+
 ERL_NIF_TERM nif_swap_buffers(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]);
 
 window_res_t* get_window_from_term(ErlNifEnv* env, ERL_NIF_TERM term);

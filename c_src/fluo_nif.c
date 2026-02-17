@@ -66,6 +66,8 @@ static ErlNifFunc nif_funcs[] = {
     {"window_mouse_delta", 1, nif_window_mouse_delta},
     {"window_delta_time", 1, nif_window_delta_time},
     {"window_capture_mouse", 1, nif_window_capture_mouse},
+    {"window_mouse_left_down", 1, nif_window_mouse_left_down},
+    {"window_mouse_right_down", 1, nif_window_mouse_right_down},
     {"window_release_mouse", 1, nif_window_release_mouse},
     {"create_mesh_allocator", 2, nif_create_mesh_allocator},
     {"allocate_mesh", 3, nif_allocate_mesh},

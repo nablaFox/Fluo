@@ -79,3 +79,27 @@ ERL_NIF_TERM nif_window_release_mouse(ErlNifEnv* env, int argc,
 
     return enif_make_atom(env, "ok");
 }
+
+ERL_NIF_TERM nif_window_mouse_left_down(ErlNifEnv* env, int argc,
+                                        const ERL_NIF_TERM argv[]) {
+    window_res_t* w = get_window_from_term(env, argv[0]);
+
+    if (!w || !w->handle) return enif_make_badarg(env);
+
+    int state = glfwGetMouseButton(w->handle, GLFW_MOUSE_BUTTON_LEFT);
+
+    return state == GLFW_PRESS ? enif_make_atom(env, "true")
+                               : enif_make_atom(env, "false");
+}
+
+ERL_NIF_TERM nif_window_mouse_right_down(ErlNifEnv* env, int argc,
+                                         const ERL_NIF_TERM argv[]) {
+    window_res_t* w = get_window_from_term(env, argv[0]);
+
+    if (!w || !w->handle) return enif_make_badarg(env);
+
+    int state = glfwGetMouseButton(w->handle, GLFW_MOUSE_BUTTON_RIGHT);
+
+    return state == GLFW_PRESS ? enif_make_atom(env, "true")
+                               : enif_make_atom(env, "false");
+}

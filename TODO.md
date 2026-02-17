@@ -4,4 +4,3 @@
 - ensure passed material/params size matches shader expectations
 - fix passing tuples to renderer
 - fix wrong color in saved images
-- fix multithreading warning

@@ -408,7 +408,6 @@ ERL_NIF_TERM nif_create_window(ErlNifEnv* env, int argc,
     glfwSetWindowUserPointer(res->handle, res);
     glfwSetCursorPosCallback(res->handle, cursor_pos_cb);
 
-    glfwSetInputMode(res->handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetInputMode(res->handle, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
 
     res->last_time = 0.0;

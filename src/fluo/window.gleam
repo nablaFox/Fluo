@@ -32,6 +32,8 @@ pub type Context {
     keys_down: List(Key),
     mouse_pos: Position,
     mouse_delta: Position,
+    mouse_left_down: Bool,
+    mouse_right_down: Bool,
     width: Int,
     height: Int,
     color: ColorImage,
@@ -76,6 +78,12 @@ fn capture_mouse_raw(window: Dynamic) -> Nil
 
 @external(erlang, "fluo_nif", "window_release_mouse")
 fn release_mouse_raw(window: Dynamic) -> Nil
+
+@external(erlang, "fluo_nif", "window_mouse_left_down")
+fn mouse_left_down_raw(window: Dynamic) -> Bool
+
+@external(erlang, "fluo_nif", "window_mouse_right_down")
+fn mouse_right_down_raw(window: Dynamic) -> Bool
 
 pub fn create_window(
   title: String,
@@ -124,6 +132,16 @@ pub fn capture_mouse(window: Window) -> Nil {
 pub fn release_mouse(window: Window) -> Nil {
   let WindowHandle(handle) = window.handle
   release_mouse_raw(handle)
+}
+
+pub fn mouse_left_down(window: Window) -> Bool {
+  let WindowHandle(handle) = window.handle
+  mouse_left_down_raw(handle)
+}
+
+pub fn mouse_right_down(window: Window) -> Bool {
+  let WindowHandle(handle) = window.handle
+  mouse_right_down_raw(handle)
 }
 
 pub fn swap(window: Window, color: ColorImage, waiting: Command) -> Nil {
@@ -216,6 +234,10 @@ fn do_loop(
         image.save_color_image(window.color, path)
       }
 
+      let mouse_left_down = mouse_left_down(window)
+
+      let mouse_right_down = mouse_right_down(window)
+
       let state = {
         use cmd <- command.run(cmd)
 
@@ -228,6 +250,8 @@ fn do_loop(
             keys_down,
             mouse_pos,
             mouse_delta,
+            mouse_left_down,
+            mouse_right_down,
             window.width,
             window.height,
             window.color,

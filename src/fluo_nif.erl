@@ -8,6 +8,8 @@
   window_delta_time/1,
   window_capture_mouse/1,
   window_release_mouse/1,
+  window_mouse_left_down/1,
+  window_mouse_right_down/1,
   create_mesh_allocator/2,
   allocate_mesh/3,
   write_mesh/3,
@@ -37,6 +39,8 @@
   window_mouse_delta/1,
   window_delta_time/1,
   window_capture_mouse/1,
+  window_mouse_left_down/1,
+  window_mouse_right_down/1,
   window_release_mouse/1,
   create_mesh_allocator/2,
   allocate_mesh/3,
@@ -93,6 +97,8 @@ window_mouse_pos(_) -> erlang:nif_error(not_loaded).
 window_mouse_delta(_) -> erlang:nif_error(not_loaded).
 window_delta_time(_) -> erlang:nif_error(not_loaded).
 window_capture_mouse(_) -> erlang:nif_error(not_loaded).
+window_mouse_left_down(_) -> erlang:nif_error(not_loaded).
+window_mouse_right_down(_) -> erlang:nif_error(not_loaded).
 window_release_mouse(_) -> erlang:nif_error(not_loaded).
 create_mesh_allocator(_, _) -> erlang:nif_error(not_loaded).
 allocate_mesh(_, _, _) -> erlang:nif_error(not_loaded).

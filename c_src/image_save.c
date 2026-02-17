@@ -71,6 +71,19 @@ static int get_path_from_term(ErlNifEnv* env, ERL_NIF_TERM term, char* out,
     return 1;
 }
 
+static void bgra_to_rgba(uint8_t* p, size_t bytes) {
+    for (size_t i = 0; i + 3 < bytes; i += 4) {
+        uint8_t b = p[i + 0];
+        uint8_t g = p[i + 1];
+        uint8_t r = p[i + 2];
+        uint8_t a = p[i + 3];
+        p[i + 0] = r;
+        p[i + 1] = g;
+        p[i + 2] = b;
+        p[i + 3] = a;
+    }
+}
+
 ERL_NIF_TERM nif_save_color_image_to_png(ErlNifEnv* env, int argc,
                                          const ERL_NIF_TERM argv[]) {
     if (argc != 2) return enif_make_badarg(env);
@@ -239,6 +252,10 @@ ERL_NIF_TERM nif_save_color_image_to_png(ErlNifEnv* env, int argc,
     }
 
     vmaInvalidateAllocation(g_device.allocator, staging_alloc, 0, size);
+
+    if (img->format == VK_FORMAT_B8G8R8A8_UNORM) {
+        bgra_to_rgba((uint8_t*)mapped, (size_t)size);
+    }
 
     const int stride = (int)(w * 4);
     int ok = stbi_write_png(path, (int)w, (int)h, 4, mapped, stride);
