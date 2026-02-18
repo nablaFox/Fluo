@@ -14,6 +14,8 @@ pub const black = Color(0.0, 0.0, 0.0)
 
 pub const gray = Color(0.502, 0.502, 0.502)
 
+pub const yellow = Color(1.0, 1.0, 0.0)
+
 pub fn multiply(color: Color, scalar: Float) -> Color {
   let Color(r, g, b) = color
   Color(r *. scalar, g *. scalar, b *. scalar)

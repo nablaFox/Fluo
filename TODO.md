@@ -2,5 +2,3 @@
 - cache shader modules
 - better error handling and print messages
 - ensure passed material/params size matches shader expectations
-- fix passing tuples to renderer
-- fix wrong color in saved images

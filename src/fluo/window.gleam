@@ -89,10 +89,16 @@ pub fn create_window(
   title: String,
   width width: Int,
   height height: Int,
+  captured captured: Bool,
 ) -> Window {
   let handle = create_window_raw(title, width, height)
   let color = image.create_color_image(width, height)
   let depth = image.create_depth_image(width, height)
+
+  case captured {
+    True -> capture_mouse_raw(handle)
+    False -> Nil
+  }
 
   let handle = WindowHandle(handle)
 

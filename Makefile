@@ -1,7 +1,7 @@
 APP_PRIV_DIR := priv
 LIB_NAME := libfluo_nif
 SO := $(APP_PRIV_DIR)/$(LIB_NAME).so
-GLSL_SRC := fluo.glsl
+GLSL_SRC := src/fluo.glsl
 GLSL_DST := $(APP_PRIV_DIR)/fluo.glsl
 
 CXX := g++
