@@ -1,13 +1,13 @@
 -module(fluo_shaders).
--export([compile_shaders/1]).
+
+-export([compile_shaders/2]).
 
 -define(SHADERS_DIR, "shaders").
-
 -define(APPEND_VERTEX, "VERTEX_SHADER_INPUTS;").
 -define(APPEND_FRAGMENT, "FRAGMENT_SHADER_OUTPUTS;").
 -define(DEFAULT_DRAW_PARAMS, "DEFAULT_DRAW_PARAMS;").
 
-compile_shaders(PrivDir) ->
+compile_shaders(PrivDir, SrcDir) ->
   case os:find_executable("glslc") of
     false ->
       {error, glslc_not_found};
@@ -17,29 +17,48 @@ compile_shaders(PrivDir) ->
         {error, E} ->
           {error, {cannot_read_prefix, PrefixPath, E}};
         {ok, PrefixBin} ->
-          compile_dir(Glslc, PrefixBin, PrivDir, ?SHADERS_DIR)
+          case find_shaders(SrcDir) of
+            {error, _} = Err -> Err;
+            {ok, ShaderPaths} ->
+              compile_all(Glslc, PrefixBin, PrivDir, ?SHADERS_DIR, ShaderPaths)
+          end
       end
   end.
 
-compile_dir(Glslc, PrefixBin, PrivDir, ShadersDir) ->
-  case file:list_dir(ShadersDir) of
+find_shaders(Dir) ->
+  case file:list_dir(Dir) of
     {error, E} ->
-      {error, {cannot_list_dir, ShadersDir, E}};
+      {error, {cannot_list_dir, Dir, E}};
     {ok, Names} ->
-      ShaderNames = [N || N <- Names, is_stage_shader(N)],
-      compile_all(Glslc, PrefixBin, PrivDir, ShadersDir, ShaderNames)
+      lists:foldl(fun
+        (_, {error, _} = Err) ->
+          Err;
+        (Name, {ok, Acc}) ->
+          Path = filename:join(Dir, Name),
+          case filelib:is_dir(Path) of
+            true ->
+              case find_shaders(Path) of
+                {error, _} = Err -> Err;
+                {ok, Found} -> {ok, Acc ++ Found}
+              end;
+            false ->
+              case is_stage_shader(Name) of
+                true  -> {ok, [Path | Acc]};
+                false -> {ok, Acc}
+              end
+          end
+      end, {ok, []}, Names)
   end.
 
-compile_all(_Glslc, _Prefix, _PrivDir, _ShadersDir, []) ->
+compile_all(_Glslc, _Prefix, _PrivDir, _OutDir, []) ->
   ok;
-compile_all(Glslc, PrefixBin, PrivDir, ShadersDir, [Name | Rest]) ->
-  Path = filename:join(ShadersDir, Name),
-  case compile_one(Glslc, PrefixBin, PrivDir, Path) of
-    ok -> compile_all(Glslc, PrefixBin, PrivDir, ShadersDir, Rest);
+compile_all(Glslc, PrefixBin, PrivDir, OutDir, [ShaderPath | Rest]) ->
+  case compile_one(Glslc, PrefixBin, PrivDir, OutDir, ShaderPath) of
+    ok -> compile_all(Glslc, PrefixBin, PrivDir, OutDir, Rest);
     {error, _} = Err -> Err
   end.
 
-compile_one(Glslc, PrefixBin, PrivDir, ShaderPath) ->
+compile_one(Glslc, PrefixBin, PrivDir, OutDir, ShaderPath) ->
   case stage_of(ShaderPath) of
     none ->
       ok;
@@ -49,7 +68,9 @@ compile_one(Glslc, PrefixBin, PrivDir, ShaderPath) ->
           {error, {cannot_read_shader, ShaderPath, E}};
         {ok, ShaderBin} ->
           SourceIolist = combined_source(Stage, PrefixBin, ShaderBin),
-          OutPath = ShaderPath ++ ".spv",
+          OutName = filename:basename(ShaderPath) ++ ".spv",
+          OutPath = filename:join(OutDir, OutName),
+          ok = filelib:ensure_dir(OutPath),
           with_temp_glsl(PrivDir, SourceIolist, fun(TmpPath) ->
             run_glslc(Glslc, Stage, TmpPath, OutPath)
           end)

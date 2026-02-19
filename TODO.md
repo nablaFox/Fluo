@@ -2,3 +2,4 @@
 - cache shader modules
 - better error handling and print messages
 - ensure passed material/params size matches shader expectations
+- recompile shaders only when needed (check timestamps)

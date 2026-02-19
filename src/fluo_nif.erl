@@ -67,7 +67,8 @@
 
 init() ->
   PrivDir = priv_dir(),
-  case fluo_shaders:compile_shaders(PrivDir) of
+  SrcDir = filename:join(project_root(), "src"),
+  case fluo_shaders:compile_shaders(PrivDir, SrcDir) of
     ok ->
       case erlang:load_nif(filename:join(PrivDir, "libfluo_nif"), 0) of
         ok -> ok;
@@ -79,6 +80,10 @@ init() ->
       report(init_failed, Err),
       Err
   end.
+
+project_root() ->
+  BeamDir = filename:dirname(code:which(?MODULE)),
+  lists:foldl(fun(_, Acc) -> filename:dirname(Acc) end, BeamDir, lists:seq(1, 5)).
 
 priv_dir() ->
   case code:priv_dir(fluo_nif) of
