@@ -242,7 +242,13 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
             return pack_mat4_f32_std140(blob, blob_size, off, m4);
         }
 
-        return 0;
+        ERL_NIF_TERM head, tail, cur = t;
+        while (enif_get_list_cell(env, cur, &head, &tail)) {
+            if (!pack_std140_term(env, head, blob, blob_size, off)) return 0;
+            cur = tail;
+        }
+
+        return enif_is_empty_list(env, cur) ? 1 : 0;
     }
 
     const ERL_NIF_TERM* elems = NULL;
@@ -272,8 +278,6 @@ static int pack_std140_term(ErlNifEnv* env, ERL_NIF_TERM t, uint8_t* blob,
     for (int i = 0; i < arity; i++) {
         if (!pack_std140_term(env, elems[i], blob, blob_size, off)) return 0;
     }
-
-    return 1;
 
     return 1;
 }

@@ -169,16 +169,20 @@ pub const quad = Geometry(
   [0, 1, 2, 2, 3, 0],
 )
 
+pub fn to_mesh(geometry: Geometry) -> Mesh {
+  mesh.create(geometry.vertices, geometry.indices)
+}
+
 pub fn create_triangle() -> Mesh {
-  mesh.create(triangle.vertices, triangle.indices)
+  to_mesh(triangle)
 }
 
 pub fn create_cube() -> Mesh {
-  mesh.create(cube.vertices, cube.indices)
+  to_mesh(cube)
 }
 
 pub fn create_quad() -> Mesh {
-  mesh.create(quad.vertices, quad.indices)
+  to_mesh(quad)
 }
 
 pub fn create_sphere(precision: Int) -> Mesh {
